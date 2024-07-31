@@ -2,6 +2,7 @@ import shutil
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.utils.checkpoint as checkpoint
 import time
 import requests
 from tqdm import tqdm
@@ -14,13 +15,20 @@ from utils.common.utils import save_reconstructions, ssim_loss
 from utils.common.loss_function import SSIMLoss
 from utils.model.varnet import VarNet
 
+# DataAugmentor와 관련된 import 추가
+from MRAugment.mraugment.data_augment import DataAugmentor
+
 import os
 
-def train_epoch(args, epoch, model, data_loader, optimizer, loss_type):
+def checkpointed_forward(module, *inputs):
+    return checkpoint.checkpoint(module, *inputs)
+
+def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor):
     model.train()
     start_epoch = start_iter = time.perf_counter()
     len_loader = len(data_loader)
     total_loss = 0.
+    optimizer.zero_grad()
 
     for iter, data in enumerate(data_loader):
         mask, kspace, target, maximum, _, _ = data
@@ -29,18 +37,28 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type):
         target = target.cuda(non_blocking=True)
         maximum = maximum.cuda(non_blocking=True)
 
-        output = model(kspace, mask)
+        # DataAugmentor를 사용해 k-space 데이터를 증강
+        if augmentor.aug_on:
+            kspace, target = augmentor(kspace, target_size=target.shape[-2:])
+
+        # Apply gradient checkpointing
+        output = checkpointed_forward(model, kspace, mask)
         loss = loss_type(output, target, maximum)
-        optimizer.zero_grad()
+        
+        loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
         loss.backward()
-        optimizer.step()
-        total_loss += loss.item()
+
+        if (iter + 1) % args.gradient_accumulation_steps == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+        
+        total_loss += loss.item() * args.gradient_accumulation_steps
 
         if iter % args.report_interval == 0:
             print(
                 f'Epoch = [{epoch:3d}/{args.num_epochs:3d}] '
                 f'Iter = [{iter:4d}/{len(data_loader):4d}] '
-                f'Loss = {loss.item():.4g} '
+                f'Loss = {loss.item() * args.gradient_accumulation_steps:.4g} '
                 f'Time = {time.perf_counter() - start_iter:.4f}s',
             )
             start_iter = time.perf_counter()
@@ -59,7 +77,9 @@ def validate(args, model, data_loader):
             mask, kspace, target, _, fnames, slices = data
             kspace = kspace.cuda(non_blocking=True)
             mask = mask.cuda(non_blocking=True)
-            output = model(kspace, mask)
+
+            # Apply gradient checkpointing
+            output = checkpointed_forward(model, kspace, mask)
 
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
@@ -145,7 +165,10 @@ def train(args):
     best_val_loss = 1.
     start_epoch = 0
 
-    
+    # DataAugmentor 초기화
+    current_epoch_fn = lambda: start_epoch
+    augmentor = DataAugmentor(args, current_epoch_fn)
+
     train_loader = create_data_loaders(data_path = args.data_path_train, args = args, shuffle=True)
     val_loader = create_data_loaders(data_path = args.data_path_val, args = args)
     
@@ -153,7 +176,7 @@ def train(args):
     for epoch in range(start_epoch, args.num_epochs):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
         
-        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type)
+        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, augmentor)
         val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, val_loader)
         
         val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
