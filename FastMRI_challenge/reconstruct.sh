@@ -1,4 +1,4 @@
-python reconstruct.py \
+python3 reconstruct.py \
   -b 2 \
-  -n 'test_Varnet' \
-  -p '/home/Data/leaderboard'
+  -n 'smplayer_Varnet' \
+  -p '/home/swpants05/fastmri-2024-data/leaderboard'

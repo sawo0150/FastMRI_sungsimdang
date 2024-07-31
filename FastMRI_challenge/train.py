@@ -26,8 +26,8 @@ def parse():
     parser.add_argument('-v', '--data-path-val', type=Path, default='/Data/val/', help='Directory of validation data')
     
     parser.add_argument('--cascade', type=int, default=20, help='Number of cascades | Should be less than 12') ## important hyperparameter
-    parser.add_argument('--chans', type=int, default=18, help='Number of channels for cascade U-Net | 18 in original varnet') ## important hyperparameter
-    parser.add_argument('--sens_chans', type=int, default=8, help='Number of channels for sensitivity map U-Net | 8 in original varnet') ## important hyperparameter
+    parser.add_argument('--chans', type=int, default=9, help='Number of channels for cascade U-Net | 18 in original varnet') ## important hyperparameter
+    parser.add_argument('--sens_chans', type=int, default=4, help='Number of channels for sensitivity map U-Net | 8 in original varnet') ## important hyperparameter
     parser.add_argument('--input-key', type=str, default='kspace', help='Name of input key')
     parser.add_argument('--target-key', type=str, default='image_label', help='Name of target key')
     parser.add_argument('--max-key', type=str, default='max', help='Name of max key in attributes')
@@ -58,6 +58,9 @@ def parse():
     parser.add_argument('--aug-max-shearing-x', type=float, default=15.0, help='Maximum shearing along the x axis (degrees)')
     parser.add_argument('--aug-max-shearing-y', type=float, default=15.0, help='Maximum shearing along the y axis (degrees)')
     parser.add_argument('--aug-max-scaling', type=float, default=0.25, help='Maximum scaling as a fraction of image dimensions')
+
+    # max_train_resolution 인자를 추가합니다.
+    parser.add_argument('--max_train_resolution', type=int, default=256, help='Maximum resolution for training')
 
     args = parser.parse_args()
     return args

@@ -21,6 +21,8 @@ from MRAugment.mraugment.data_augment import DataAugmentor
 import os
 
 def checkpointed_forward(module, *inputs):
+    # 모든 입력 텐서가 requires_grad=True 상태인지 확인합니다.
+    inputs = [inp.float().requires_grad_(True) if torch.is_tensor(inp) and inp.is_floating_point() else inp for inp in inputs]
     return checkpoint.checkpoint(module, *inputs)
 
 def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor):
@@ -32,10 +34,13 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
 
     for iter, data in enumerate(data_loader):
         mask, kspace, target, maximum, _, _ = data
+        # print(kspace.dtype)
+        # print(mask.dtype)
         mask = mask.cuda(non_blocking=True)
-        kspace = kspace.cuda(non_blocking=True)
-        target = target.cuda(non_blocking=True)
-        maximum = maximum.cuda(non_blocking=True)
+        kspace = kspace.cuda(non_blocking=True).requires_grad_(True)  # kspace는 grad 필요
+        target = target.cuda(non_blocking=True).requires_grad_(False)  # target은 grad 필요 없음
+        maximum = maximum.cuda(non_blocking=True).requires_grad_(False)  # maximum도 마찬가지
+
 
         # DataAugmentor를 사용해 k-space 데이터를 증강
         if augmentor.aug_on:
