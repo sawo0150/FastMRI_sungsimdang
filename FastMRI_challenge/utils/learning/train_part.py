@@ -25,6 +25,10 @@ from torch.optim.lr_scheduler import _LRScheduler
 # MaskAugmentor와 관련된 코드 추가
 import random
 
+from torch.cuda.amp import autocast, GradScaler
+
+scaler = GradScaler()  # Mixed Precision을 위한 GradScaler 초기화
+
 def checkpointed_forward(module, *inputs):
     # 모든 입력 텐서가 requires_grad=True 상태인지 확인합니다.
     inputs = [inp.float().requires_grad_(True) if torch.is_tensor(inp) and inp.is_floating_point() else inp for inp in inputs]
@@ -55,30 +59,28 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
         #     kspace, target = augmentor(kspace, target_size=target.shape[-2:])
         #     mask = mask_augmentor.augment(mask, epoch)
 
-        # Apply gradient checkpointing
-        output = checkpointed_forward(model, kspace, mask)
-
-        # # 특정 블록에서 gradient를 저장하지 않도록 설정
-        # with torch.no_grad():
-        #     output = model(kspace, mask)  # 모델 전체에 gradient를 계산하지 않음
+        # # Apply gradient checkpointing
+        # output = checkpointed_forward(model, kspace, mask)
 
 
-        loss = loss_type(output, target, maximum)
+        # loss = loss_type(output, target, maximum)
         
-        # # Zero gradients before backward pass
-        # optimizer.zero_grad()
-        # # Recompute the forward pass and then do the backward pass
-        # with torch.enable_grad():
-        #     output = model(kspace, mask)
-        #     loss = loss_type(output, target, maximum)
-        #     loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
-        #     loss.backward()
+        # loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
+        # loss.backward()
 
-        loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
-        loss.backward()
+        with autocast():  # Mixed Precision 사용
+            # Apply gradient checkpointing
+            output = checkpointed_forward(model, kspace, mask)
+
+            loss = loss_type(output, target, maximum)
+            loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
+
+        scaler.scale(loss).backward()
+
 
         if (iter + 1) % args.gradient_accumulation_steps == 0:
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             optimizer.zero_grad()
         
         total_loss += loss.item() * args.gradient_accumulation_steps
