@@ -128,6 +128,12 @@ class MS_SSIM_L1_LOSS(nn.Module):
         if data_range is not None:
             self.DR = data_range
 
+        # x와 y의 차원을 확인하여 3차원일 경우 4차원으로 변환
+        if len(x.shape) == 3:
+            x = x.unsqueeze(1)  # 채널 차원 추가
+        if len(y.shape) == 3:
+            y = y.unsqueeze(1)  # 채널 차원 추가
+
         b, c, h, w = x.shape
         mux = F.conv2d(x, self.g_masks, groups=1, padding=self.pad)
         muy = F.conv2d(y, self.g_masks, groups=1, padding=self.pad)

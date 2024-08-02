@@ -8,11 +8,13 @@ smplayer 모델에 있는 모든 요소 넣어봄 (일단 debugging 완료)
 2. MRAugment (Augment 방법들을 여러 방법을 통해 조절할 수 있음)
 3. MRAugment scheduler (이것도 상수값을 조절할 수 있음)
 
-2024/08/02 3시 수정
+2024/08/02 15시 수정
 1. Model checkpointing, Loading 구현
 2. Adam 대신 RAdam 적용
 3. 기존의 SSIM 적용 대신 Mix Loss 적용 (MS_SSIM + L1_Loss)
 
+2024/08/03 0시 수정
+위의 요소들 모두 디버깅 완료
 
 현재 모델 구성 : 
 batch : 1

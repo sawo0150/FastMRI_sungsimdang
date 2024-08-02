@@ -44,9 +44,9 @@ def parse():
     parser.add_argument('--aug-upsample-factor', type=int, default=2, help='Upsample factor before augmentation')
     parser.add_argument('--aug-upsample-order', type=int, default=1, help='Order of upsampling filter before augmentation, 1: bilinear, 3: bicubic')
 
-    parser.add_argument('--aug-weight-translation', type=float, default=1.0, help='Weight of translation probability')
+    parser.add_argument('--aug-weight-translation', type=float, default=0, help='Weight of translation probability')
     parser.add_argument('--aug-weight-rotation', type=float, default=1.0, help='Weight of arbitrary rotation probability')
-    parser.add_argument('--aug-weight-shearing', type=float, default=1.0, help='Weight of shearing probability')
+    parser.add_argument('--aug-weight-shearing', type=float, default=0, help='Weight of shearing probability')
     parser.add_argument('--aug-weight-scaling', type=float, default=1.0, help='Weight of scaling probability')
     parser.add_argument('--aug-weight-rot90', type=float, default=1.0, help='Weight of rotation by multiples of 90 degrees probability')
     parser.add_argument('--aug-weight-fliph', type=float, default=1.0, help='Weight of horizontal flip probability')
@@ -57,11 +57,10 @@ def parse():
     parser.add_argument('--aug-max-rotation', type=float, default=180., help='Maximum rotation applied in either direction (degrees)')
     parser.add_argument('--aug-max-shearing-x', type=float, default=15.0, help='Maximum shearing along the x axis (degrees)')
     parser.add_argument('--aug-max-shearing-y', type=float, default=15.0, help='Maximum shearing along the y axis (degrees)')
-    parser.add_argument('--aug-max-scaling', type=float, default=0.25, help='Maximum scaling as a fraction of image dimensions')
+    parser.add_argument('--aug-max-scaling', type=float, default=0.15, help='Maximum scaling as a fraction of image dimensions')
 
     # max_train_resolution 인자를 추가합니다.
-    parser.add_argument('--max_train_resolution', type=int, default=256, help='Maximum resolution for training')
-
+    parser.add_argument("--max_train_resolution",nargs="+",default=None,type=int,help="If given, training slices will be center cropped to this size if larger along any dimension.")
     args = parser.parse_args()
     return args
 
@@ -73,6 +72,8 @@ if __name__ == '__main__':
         seed_fix(args.seed)
 
     args.gradient_accumulation_steps = 10
+    args.max_epochs = args.num_epochs
+
     args.exp_dir = '../result' / args.net_name / 'checkpoints'
     args.val_dir = '../result' / args.net_name / 'reconstructions_val'
     args.main_dir = '../result' / args.net_name / __file__

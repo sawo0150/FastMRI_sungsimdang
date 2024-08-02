@@ -157,8 +157,10 @@ class AugmentationPipeline:
             
     def random_apply(self, transform_name):
         if self.rng.uniform() < self.weight_dict[transform_name] * self.augmentation_strength:
+            # print(transform_name, "True")
             return True
         else: 
+            # print(transform_name, "False")
             return False
         
     def set_augmentation_strength(self, p):
@@ -228,7 +230,7 @@ class DataAugmentor:
             self.augmentation_pipeline = AugmentationPipeline(hparams)
         self.max_train_resolution = hparams.max_train_resolution
         
-    def __call__(self, kspace, target_size):
+    def __call__(self, kspace,target, target_size):
         """
         Generates augmented kspace and corresponding augmented target pair.
         kspace: torch tensor of shape [C, H, W, 2] (multi-coil) or [H, W, 2]

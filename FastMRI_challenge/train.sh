@@ -1,6 +1,6 @@
   python3 train.py \
   -b 1 \
-  -e 5 \
+  -e 6 \
   -l 0.001 \
   -r 10 \
   -n 'smplayer_Varnet' \

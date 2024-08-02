@@ -39,25 +39,41 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
 
     for iter, data in enumerate(data_loader):
         mask, kspace, target, maximum, _, _ = data
-        # print(kspace.dtype)
-        # print(mask.dtype)
+        # print("train_epoch 함수 : ", kspace.shape)
+        # print("mask 함수 : ", mask.shape)
+        
         mask = mask.cuda(non_blocking=True)
         kspace = kspace.cuda(non_blocking=True).requires_grad_(True)  # kspace는 grad 필요
         target = target.cuda(non_blocking=True).requires_grad_(False)  # target은 grad 필요 없음
         maximum = maximum.cuda(non_blocking=True).requires_grad_(False)  # maximum도 마찬가지
 
 
-        # DataAugmentor를 사용해 k-space 데이터를 증강
-        # MaskAugmentor를 사용해 mask를 증강
+        # # DataAugmentor를 사용해 k-space 데이터를 증강
+        # # MaskAugmentor를 사용해 mask를 증강
 
-        if augmentor.aug_on:
-            kspace, target = augmentor(kspace, target_size=target.shape[-2:])
-            mask = mask_augmentor.augment(mask, epoch)
+        # if augmentor.aug_on:
+        #     kspace, target = augmentor(kspace, target_size=target.shape[-2:])
+        #     mask = mask_augmentor.augment(mask, epoch)
 
         # Apply gradient checkpointing
         output = checkpointed_forward(model, kspace, mask)
+
+        # # 특정 블록에서 gradient를 저장하지 않도록 설정
+        # with torch.no_grad():
+        #     output = model(kspace, mask)  # 모델 전체에 gradient를 계산하지 않음
+
+
         loss = loss_type(output, target, maximum)
         
+        # # Zero gradients before backward pass
+        # optimizer.zero_grad()
+        # # Recompute the forward pass and then do the backward pass
+        # with torch.enable_grad():
+        #     output = model(kspace, mask)
+        #     loss = loss_type(output, target, maximum)
+        #     loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
+        #     loss.backward()
+
         loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
         loss.backward()
 
@@ -197,21 +213,45 @@ def train(args):
 
 
     # DataAugmentor 초기화
-    current_epoch_fn = lambda: start_epoch
+    current_epoch_fn = lambda: epoch
     augmentor = DataAugmentor(args, current_epoch_fn)
 
     # MaskAugmentor 초기화
-    mask_augmentor = MaskAugmentor(total_epochs=args.num_epochs)
+    mask_augmentor = MaskAugmentor(current_epoch_fn, total_epochs=args.num_epochs)
 
-    train_loader = create_data_loaders(data_path = args.data_path_train, args = args, shuffle=True)
-    val_loader = create_data_loaders(data_path = args.data_path_val, args = args)
+    if augmentor.aug_on:
+        train_loader = create_data_loaders(
+            data_path=args.data_path_train,
+            args=args,
+            shuffle=True,
+            augmentor=augmentor,  # train_loader에 augmentor 전달
+            mask_augmentor=mask_augmentor  # train_loader에 mask_augmentor 전달
+        )
+        val_loader = create_data_loaders(
+            data_path=args.data_path_val,
+            args=args
+        )
+    else:
+        train_loader = create_data_loaders(
+            data_path=args.data_path_train,
+            args=args,
+            shuffle=True
+        )
+        val_loader = create_data_loaders(
+            data_path=args.data_path_val,
+            args=args
+        )
+
     
     val_loss_log = np.empty((0, 2))
     for epoch in range(start_epoch, args.num_epochs):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
+        p = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산
+        print(f"Augmentation probability at epoch {epoch}: {p}")
         
 
-        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, augmentor, mask_augmentor)        val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, val_loader)
+        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, augmentor, mask_augmentor)
+        val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, val_loader)
         
         val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
         file_path = os.path.join(args.val_loss_dir, "val_loss_log")

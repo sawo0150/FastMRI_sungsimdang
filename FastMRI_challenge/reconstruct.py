@@ -20,6 +20,8 @@ def parse():
     parser.add_argument('--sens_chans', type=int, default=4, help='Number of channels for sensitivity map U-Net')
     parser.add_argument("--input_key", type=str, default='kspace', help='Name of input key')
 
+    # DataAugmentor 관련 argument 추가
+    parser.add_argument('--aug-on', default=False, action='store_true', help='Switch to turn data augmentation on')
     args = parser.parse_args()
     return args
 

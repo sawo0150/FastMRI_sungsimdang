@@ -83,6 +83,7 @@ def fft2_np(x):
 
 
 def complex_channel_first(x):
+    # print("Shape of im:", x.shape)
     assert x.shape[-1] == 2
     if len(x.shape) == 3:
         # Single-coil (H, W, 2) -> (2, H, W)
