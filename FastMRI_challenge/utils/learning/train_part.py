@@ -12,13 +12,15 @@ import copy
 from collections import defaultdict
 from utils.data.load_data import create_data_loaders
 from utils.common.utils import save_reconstructions, ssim_loss
-from utils.common.loss_function import SSIMLoss
+from utils.common.loss_function import SSIMLoss, MS_SSIM_L1_LOSS
 from utils.model.varnet import VarNet
 
 # DataAugmentor와 관련된 import 추가
 from MRAugment.mraugment.data_augment import DataAugmentor
 
 import os
+import math
+from torch.optim.lr_scheduler import _LRScheduler
 
 def checkpointed_forward(module, *inputs):
     # 모든 입력 텐서가 requires_grad=True 상태인지 확인합니다.
@@ -136,6 +138,20 @@ def download_model(url, fname):
             progress_bar.update(len(chunk))
             fh.write(chunk)
 
+def load_checkpoint(exp_dir, model, optimizer):
+    checkpoint_path = exp_dir / 'model.pt'
+    if checkpoint_path.exists():
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        start_epoch = checkpoint['epoch']
+        best_val_loss = checkpoint['best_val_loss']
+        print(f"Checkpoint loaded. Resuming from epoch {start_epoch}, with best validation loss {best_val_loss:.4g}.")
+    else:
+        print("No checkpoint found. Starting from scratch.")
+        start_epoch = 0
+        best_val_loss = float('inf')
+    return start_epoch, best_val_loss
 
         
 def train(args):
@@ -164,11 +180,15 @@ def train(args):
     model.load_state_dict(pretrained)
     """
 
-    loss_type = SSIMLoss().to(device=device)
-    optimizer = torch.optim.Adam(model.parameters(), args.lr)
+    # loss_type = SSIMLoss().to(device=device)
+    loss_type = MS_SSIM_L1_LOSS().to(device=device)  # 새로 만든 MS_SSIM_L1_LOSS 사용
+    # optimizer = torch.optim.Adam(model.parameters(), args.lr)
+    optimizer = torch.optim.RAdam(model.parameters(), args.lr)  # RAdam optimizer 사용
 
-    best_val_loss = 1.
-    start_epoch = 0
+
+    # Check if a checkpoint exists, and load it if it does
+    start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model, optimizer)
+
 
     # DataAugmentor 초기화
     current_epoch_fn = lambda: start_epoch
