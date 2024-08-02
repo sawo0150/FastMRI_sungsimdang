@@ -258,6 +258,8 @@ def train(args):
         np.save(file_path, val_loss_log)
         print(f"loss file saved! {file_path}")
 
+        # train_loss = 0 
+        # train_time = 0 
         train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
         val_loss = torch.tensor(val_loss).cuda(non_blocking=True)
         num_subjects = torch.tensor(num_subjects).cuda(non_blocking=True)
@@ -267,6 +269,7 @@ def train(args):
         is_new_best = val_loss < best_val_loss
         best_val_loss = min(best_val_loss, val_loss)
 
+        print("complete")
         save_model(args, args.exp_dir, epoch + 1, model, optimizer, best_val_loss, is_new_best)
         print(
             f'Epoch = [{epoch:4d}/{args.num_epochs:4d}] TrainLoss = {train_loss:.4g} '
@@ -280,3 +283,12 @@ def train(args):
             print(
                 f'ForwardTime = {time.perf_counter() - start:.4f}s',
             )
+
+        # **모델 평가를 위한 외부 스크립트 실행**
+        reconstruct_cmd = f"python3 reconstruct.py -b 2 -n '{args.net_name}' -p '/home/swpants05/fastmri-2024-data/leaderboard'"
+        os.system(reconstruct_cmd)
+
+        eval_cmd = f"python3 leaderboard_eval.py -lp '/home/swpants05/fastmri-2024-data/leaderboard' -yp '/home/swpants05/fastMRISungsimdang_ws/root_sungsimV1/result/{args.net_name}/reconstructions_leaderboard'"
+        os.system(eval_cmd)
+
+        print(f"Reconstruction and evaluation done for epoch {epoch}.")
