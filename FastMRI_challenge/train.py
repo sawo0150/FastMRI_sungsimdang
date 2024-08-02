@@ -34,7 +34,7 @@ def parse():
     parser.add_argument('--seed', type=int, default=430, help='Fix random seed')
 
     # DataAugmentor 관련 argument 추가
-    parser.add_argument('--aug-on', default=False, action='store_true', help='Switch to turn data augmentation on')
+    parser.add_argument('--aug-on', default=True, action='store_true', help='Switch to turn data augmentation on')
     parser.add_argument('--aug-schedule', type=str, default='exp', choices=['constant', 'ramp', 'exp'], help='Type of augmentation scheduling')
     parser.add_argument('--aug-delay', type=int, default=0, help='Number of epochs without data augmentation at the start of training')
     parser.add_argument('--aug-strength', type=float, default=0.3, help='Maximum augmentation strength')

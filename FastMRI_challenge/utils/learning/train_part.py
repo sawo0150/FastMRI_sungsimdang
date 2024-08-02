@@ -17,17 +17,20 @@ from utils.model.varnet import VarNet
 
 # DataAugmentor와 관련된 import 추가
 from MRAugment.mraugment.data_augment import DataAugmentor
+from MaskAugment.maskAugment import MaskAugmentor
 
 import os
 import math
 from torch.optim.lr_scheduler import _LRScheduler
+# MaskAugmentor와 관련된 코드 추가
+import random
 
 def checkpointed_forward(module, *inputs):
     # 모든 입력 텐서가 requires_grad=True 상태인지 확인합니다.
     inputs = [inp.float().requires_grad_(True) if torch.is_tensor(inp) and inp.is_floating_point() else inp for inp in inputs]
     return checkpoint.checkpoint(module, *inputs)
 
-def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor):
+def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor, mask_augmentor):
     model.train()
     start_epoch = start_iter = time.perf_counter()
     len_loader = len(data_loader)
@@ -45,8 +48,11 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
 
 
         # DataAugmentor를 사용해 k-space 데이터를 증강
+        # MaskAugmentor를 사용해 mask를 증강
+
         if augmentor.aug_on:
             kspace, target = augmentor(kspace, target_size=target.shape[-2:])
+            mask = mask_augmentor.augment(mask, epoch)
 
         # Apply gradient checkpointing
         output = checkpointed_forward(model, kspace, mask)
@@ -194,6 +200,9 @@ def train(args):
     current_epoch_fn = lambda: start_epoch
     augmentor = DataAugmentor(args, current_epoch_fn)
 
+    # MaskAugmentor 초기화
+    mask_augmentor = MaskAugmentor(total_epochs=args.num_epochs)
+
     train_loader = create_data_loaders(data_path = args.data_path_train, args = args, shuffle=True)
     val_loader = create_data_loaders(data_path = args.data_path_val, args = args)
     
@@ -201,8 +210,8 @@ def train(args):
     for epoch in range(start_epoch, args.num_epochs):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
         
-        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, augmentor)
-        val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, val_loader)
+
+        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, augmentor, mask_augmentor)        val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, val_loader)
         
         val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
         file_path = os.path.join(args.val_loss_dir, "val_loss_log")
