@@ -36,7 +36,7 @@ class MaskAugmentor:
         return mask
 
     def update_acc_probability(self, epoch):
-        progress = min(1, (epoch / self.total_epochs) * 0.8)  # 마지막 epoch에서 0.8이 되도록 설정
+        progress = min(1, 0.1+(epoch / self.total_epochs) * 0.4)  # 마지막 epoch에서 0.8이 되도록 설정
         initial_weight = max(0, 1 - progress)
         later_weight = min(1, progress)
 

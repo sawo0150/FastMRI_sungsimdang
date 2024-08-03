@@ -219,28 +219,21 @@ def train(args):
     # MaskAugmentor 초기화
     mask_augmentor = MaskAugmentor(current_epoch_fn, total_epochs=args.num_epochs)
 
-    if augmentor.aug_on:
-        train_loader = create_data_loaders(
-            data_path=args.data_path_train,
-            args=args,
-            shuffle=True,
-            augmentor=augmentor,  # train_loader에 augmentor 전달
-            mask_augmentor=mask_augmentor  # train_loader에 mask_augmentor 전달
-        )
-        val_loader = create_data_loaders(
-            data_path=args.data_path_val,
-            args=args
-        )
-    else:
-        train_loader = create_data_loaders(
-            data_path=args.data_path_train,
-            args=args,
-            shuffle=True
-        )
-        val_loader = create_data_loaders(
-            data_path=args.data_path_val,
-            args=args
-        )
+    val_loader = create_data_loaders(
+        data_path=args.data_path_val,
+        args=args
+    )
+    augmentor_arg = augmentor if augmentor.aug_on else None
+    mask_augmentor_arg = mask_augmentor if args.mask_aug_on else None
+    print(augmentor_arg)
+    print(mask_augmentor_arg)
+    train_loader = create_data_loaders(
+        data_path=args.data_path_train,
+        args=args,
+        shuffle=True,
+        augmentor=augmentor_arg,      # augmentor가 None이면 전달되지 않음
+        mask_augmentor=mask_augmentor_arg  # mask_augmentor가 None이면 전달되지 않음
+    )
 
     
     val_loss_log = np.empty((0, 2))
@@ -284,11 +277,15 @@ def train(args):
                 f'ForwardTime = {time.perf_counter() - start:.4f}s',
             )
 
-        # **모델 평가를 위한 외부 스크립트 실행**
-        reconstruct_cmd = f"python3 reconstruct.py -b 2 -n '{args.net_name}' -p '/home/swpants05/fastmri-2024-data/leaderboard'"
-        os.system(reconstruct_cmd)
 
-        eval_cmd = f"python3 leaderboard_eval.py -lp '/home/swpants05/fastmri-2024-data/leaderboard' -yp '/home/swpants05/fastMRISungsimdang_ws/root_sungsimV1/result/{args.net_name}/reconstructions_leaderboard'"
-        os.system(eval_cmd)
+        # # 모델 평가를 위한 외부 스크립트 실행 전에 GPU 메모리 정리
+        # torch.cuda.empty_cache()
 
-        print(f"Reconstruction and evaluation done for epoch {epoch}.")
+        # # **모델 평가를 위한 외부 스크립트 실행**
+        # reconstruct_cmd = f"python3 reconstruct.py -b 2 -n '{args.net_name}' -p '/home/swpants05/fastmri-2024-data/leaderboard'"
+        # os.system(reconstruct_cmd)
+
+        # eval_cmd = f"python3 leaderboard_eval.py -lp '/home/swpants05/fastmri-2024-data/leaderboard' -yp '/home/swpants05/fastMRISungsimdang_ws/root_sungsimV1/result/{args.net_name}/reconstructions_leaderboard'"
+        # os.system(eval_cmd)
+
+        # print(f"Reconstruction and evaluation done for epoch {epoch}.")
