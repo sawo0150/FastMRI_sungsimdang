@@ -244,6 +244,7 @@ def train(args):
         val_loss_log = np.load(val_loss_log_file)
     else:
         val_loss_log = np.empty((0, 2))
+    print(val_loss_log)
     for epoch in range(start_epoch, args.num_epochs):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
         p = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산
