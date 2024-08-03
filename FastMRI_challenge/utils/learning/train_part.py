@@ -235,8 +235,13 @@ def train(args):
         mask_augmentor=mask_augmentor_arg  # mask_augmentor가 None이면 전달되지 않음
     )
 
-    
-    val_loss_log = np.empty((0, 2))
+    val_loss_log_file = os.path.join(args.val_loss_dir, "val_loss_log.npy")
+
+    # 기존 val_loss_log 파일이 존재하면 불러오기, 없으면 빈 배열 생성
+    if os.path.exists(val_loss_log_file):
+        val_loss_log = np.load(val_loss_log_file)
+    else:
+        val_loss_log = np.empty((0, 2))
     for epoch in range(start_epoch, args.num_epochs):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
         p = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산
