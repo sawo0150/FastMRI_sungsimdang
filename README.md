@@ -28,6 +28,8 @@ cascade : 1
 chans : 9
 sens_chan : 4
 
+Vessl Server 1080 8GB GPU 기준 최대 cascade : 22 (chans : 9, sens_chan : 4)
+
 --> 아마 cascade * chans * sens_chan의 숫자랑 Vram 사용량이랑 비례하지 않을 수도 있을 듯
 ==> 한번 계속 돌리면서 out of memory 에러가 뜨지 않는 최대값을 확인해보는게 좋을 것 같음
 
