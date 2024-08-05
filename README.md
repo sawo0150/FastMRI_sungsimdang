@@ -39,3 +39,11 @@ test 결과
 SSIM
 public : 0.9751
 private : 0.9558
+
+2024/08/05 14시 수정
+mixed precision Learning 확인 및 50epoch 학습으로 V1 버전 final로 확정
++ mask Augment 비율 증가 함수 수정 (0.1(0epoch) -> 0.5(30epoch) -> 0.5(50epoch))
+batch : 1
+cascade : 20
+chans : 9
+sens_chan : 4
