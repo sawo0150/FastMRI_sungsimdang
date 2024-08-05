@@ -16,6 +16,7 @@ class MaskAugmentor:
         self.later_acc_range = later_acc_range
         self.step = step
         self.total_epochs = total_epochs
+        self.maskAugProbability = 0
 
     def generate_mask(self, acc, mask_length):
         mask = np.zeros(mask_length, dtype=np.uint8)
@@ -36,7 +37,11 @@ class MaskAugmentor:
         return mask
 
     def update_acc_probability(self, epoch):
-        progress = min(1, 0.1+(epoch / self.total_epochs) * 0.4)  # 마지막 epoch에서 0.8이 되도록 설정
+        if epoch < 30:
+            progress = min(1, 0.1+(epoch / self.total_epochs) * 0.4)  # 마지막 epoch에서 0.5이 되도록 설정
+        else:
+            progress = 0.5  # 마지막 epoch에서 0.5이 되도록 설정
+        self.maskAugProbability = progress
         initial_weight = max(0, 1 - progress)
         later_weight = min(1, progress)
 

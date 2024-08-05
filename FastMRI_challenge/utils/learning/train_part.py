@@ -247,8 +247,12 @@ def train(args):
     print(val_loss_log)
     for epoch in range(start_epoch, args.num_epochs):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
-        p = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산
-        print(f"Augmentation probability at epoch {epoch}: {p}")
+        p1 = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산
+        print(f"MRAugmentation probability at epoch {epoch}: {p1}")
+        randomacc = mask_augmentor.get_acc()  # 현재 epoch에 기반한 증강 확률을 계산
+        p2 = mask_augmentor.maskAugProbability  # 현재 epoch에 기반한 증강 확률을 계산
+        print(f"mask_Augmentation probability at epoch {epoch}: {p2}")
+        print(randomacc)
         
 
         train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, augmentor, mask_augmentor)
