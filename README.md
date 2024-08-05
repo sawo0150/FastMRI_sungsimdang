@@ -47,3 +47,18 @@ batch : 1
 cascade : 20
 chans : 9
 sens_chan : 4
+
+2024/08/05 23시 수정
+CPU RAM 최적화를 통해서 .h5파일을 여러번 불러오지 말고 한번만 불러오도록 만들려고 했음
+but 실험 결과 : 
+
+원래 sungsimV1_final 
+epoch : 5391.4s, valTime : 244.3260s
+50iter : 47~48s
+50epoch : 3.261
+
+ram최적화 sungsimV1_final
+epoch : 5350s
+50iter : 33~55s
+
+그래서 걍 안쓰기로 함
