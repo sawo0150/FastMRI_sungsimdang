@@ -71,7 +71,8 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
 
         with autocast():  # Mixed Precision 사용
             # Apply gradient checkpointing
-            output = checkpointed_forward(model, kspace, mask)
+            # output = checkpointed_forward(model, kspace, mask)
+            output = model(kspace, mask)
 
             loss = loss_type(output, target, maximum)
             loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
@@ -80,8 +81,8 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
 
 
         if (iter + 1) % args.gradient_accumulation_steps == 0:
-            # scaler.step(optimizer)
-            # scaler.update()
+            scaler.step(optimizer)
+            scaler.update()
             optimizer.zero_grad()
         
         total_loss += loss.item() * args.gradient_accumulation_steps
@@ -111,7 +112,8 @@ def validate(args, model, data_loader):
             mask = mask.cuda(non_blocking=True)
 
             # Apply gradient checkpointing
-            output = checkpointed_forward(model, kspace, mask)
+            # output = checkpointed_forward(model, kspace, mask)
+            output = model(kspace, mask)
 
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
