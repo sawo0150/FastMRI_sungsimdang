@@ -58,7 +58,6 @@ if __name__ == '__main__':
             for i_slice in range(num_slices):
                 with h5py.File(y_fname, "r+") as hf:
                     looked = hf['image_label'][i_slice]
-                    denoised = apply_nlm_filter(looked)
                     hf['image_label'][i_slice] = denoised
     
     # Private Acceleration
@@ -75,7 +74,6 @@ if __name__ == '__main__':
             for i_slice in range(num_slices):
                 with h5py.File(y_fname, "r+") as hf:
                     looked = hf['image_label'][i_slice]
-                    denoised = apply_nlm_filter(looked)
                     hf['image_label'][i_slice] = denoised
     
     reconstructions_time = time.time() - start_time
