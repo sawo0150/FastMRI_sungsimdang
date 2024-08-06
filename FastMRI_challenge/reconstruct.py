@@ -15,13 +15,35 @@ def parse():
     parser.add_argument('-n', '--net_name', type=Path, default='test_varnet', help='Name of network')
     parser.add_argument('-p', '--path_data', type=Path, default='/Data/leaderboard/', help='Directory of test data')
     
-    parser.add_argument('--cascade', type=int, default=20, help='Number of cascades | Should be less than 12')
+    # parser.add_argument('--cascade', type=int, default=20, help='Number of cascades | Should be less than 12')
     parser.add_argument('--chans', type=int, default=9, help='Number of channels for cascade U-Net')
     parser.add_argument('--sens_chans', type=int, default=4, help='Number of channels for sensitivity map U-Net')
     parser.add_argument("--input_key", type=str, default='kspace', help='Name of input key')
 
     # DataAugmentor 관련 argument 추가
     parser.add_argument('--aug-on', default=False, action='store_true', help='Switch to turn data augmentation on')
+    
+
+    # MRPromptModel 관련 argument 추가
+    parser.add_argument('--cascade', type=int, default=6, help='Number of cascades | Should be less than 12') ## important hyperparameter
+    parser.add_argument('--num_adj_slices', type=int, default=1, help='Number of adjacent slices')
+    parser.add_argument('--n_feat0', type=int, default=32, help='Number of top-level channels for PromptUnet')
+    parser.add_argument('--feature_dim', nargs='+', type=int, default=[48, 64, 80], help='Feature dimensions')
+    parser.add_argument('--prompt_dim', nargs='+', type=int, default=[16, 32, 48], help='Prompt dimensions')
+    parser.add_argument('--sens_n_feat0', type=int, default=16, help='Initial number of channels for sensitivity Unet')
+    parser.add_argument('--sens_feature_dim', nargs='+', type=int, default=[24, 32, 40], help='Feature dimensions for sensitivity Unet')
+    parser.add_argument('--sens_prompt_dim', nargs='+', type=int, default=[8, 16, 24], help='Prompt dimensions for sensitivity Unet')
+    parser.add_argument('--len_prompt', nargs='+', type=int, default=[5, 5, 5], help='Length of prompt')
+    parser.add_argument('--prompt_size', nargs='+', type=int, default=[32, 16, 8], help='Size of prompt')
+    parser.add_argument('--n_enc_cab', nargs='+', type=int, default=[2, 3, 3], help='Number of encoder CABs')
+    parser.add_argument('--n_dec_cab', nargs='+', type=int, default=[2, 2, 3], help='Number of decoder CABs')
+    parser.add_argument('--n_skip_cab', nargs='+', type=int, default=[1, 1, 1], help='Number of skip CABs')
+    parser.add_argument('--n_bottleneck_cab', type=int, default=3, help='Number of bottleneck CABs')
+    parser.add_argument('--no_use_ca', action='store_true', help='Disable channel attention')
+    parser.add_argument('--use_checkpoint',type=bool, default=True, help='Use gradient checkpointing to save memory')
+    parser.add_argument('--low_mem',type=bool, default=True, help='Use low memory settings')
+
+    
     args = parser.parse_args()
     return args
 

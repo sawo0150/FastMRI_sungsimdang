@@ -1,4 +1,4 @@
-fastmri_sungsim V1 코드
+fastmri_sungsim V2 코드
 
 smplayer 모델에 있는 모든 요소 넣어봄 (일단 debugging 완료)
 
@@ -62,3 +62,5 @@ epoch : 5350s
 50iter : 33~55s
 
 그래서 걍 안쓰기로 함
+
+sungsimV2 : MRprompt 모델 기반

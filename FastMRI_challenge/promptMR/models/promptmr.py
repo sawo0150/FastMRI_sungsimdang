@@ -632,14 +632,16 @@ class PromptMR(nn.Module):
         num_low_frequencies: Optional[int] = None,
     ) -> torch.Tensor:
 
-        if self.use_checkpoint and self.training:
+        # if self.use_checkpoint and self.training:
+        if self.use_checkpoint:
             sens_maps = torch.utils.checkpoint.checkpoint(
                 self.sens_net, masked_kspace, mask, num_low_frequencies, use_reentrant=False)
         else:
             sens_maps = self.sens_net(masked_kspace, mask, num_low_frequencies)
         kspace_pred = masked_kspace.clone()
         for cascade in self.cascades:
-            if self.use_checkpoint and self.training:
+            if self.use_checkpoint:
+            # if self.use_checkpoint and self.training:
                 kspace_pred = torch.utils.checkpoint.checkpoint(
                 cascade, kspace_pred, masked_kspace, mask, sens_maps, use_reentrant=False)
             else:
@@ -647,5 +649,7 @@ class PromptMR(nn.Module):
 
         kspace_pred = torch.chunk(kspace_pred, self.num_adj_slices, dim=1)[
             self.center_slice]
-
-        return fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
+        result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
+        height = result.shape[-2]
+        width = result.shape[-1]
+        return result[..., (height - 384) // 2 : 384 + (height - 384) // 2, (width - 384) // 2 : 384 + (width - 384) // 2]

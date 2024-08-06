@@ -4,7 +4,8 @@ import torch
 from collections import defaultdict
 from utils.common.utils import save_reconstructions
 from utils.data.load_data import create_data_loaders
-from utils.model.varnet import VarNet
+# from utils.model.varnet import VarNet
+from promptMR.models.promptmr import PromptMR
 
 def test(args, model, data_loader):
     model.eval()
@@ -32,10 +33,32 @@ def forward(args):
     torch.cuda.set_device(device)
     print ('Current cuda device ', torch.cuda.current_device())
 
-    model = VarNet(num_cascades=args.cascade, 
-                   chans=args.chans, 
-                   sens_chans=args.sens_chans)
+    # model = VarNet(num_cascades=args.cascade, 
+    #                chans=args.chans, 
+    #                sens_chans=args.sens_chans)
+    # model.to(device=device)
+
+    model = PromptMR(
+        num_cascades=args.cascade,
+        num_adj_slices=args.num_adj_slices,
+        n_feat0=args.n_feat0,
+        feature_dim = args.feature_dim,
+        prompt_dim = args.prompt_dim,
+        sens_n_feat0=args.sens_n_feat0,
+        sens_feature_dim = args.sens_feature_dim,
+        sens_prompt_dim = args.sens_prompt_dim,
+        len_prompt = args.len_prompt,
+        prompt_size = args.prompt_size,
+        n_enc_cab = args.n_enc_cab,
+        n_dec_cab = args.n_dec_cab,
+        n_skip_cab = args.n_skip_cab,
+        n_bottleneck_cab = args.n_bottleneck_cab,
+        no_use_ca = args.no_use_ca,
+        use_checkpoint=args.use_checkpoint,
+        low_mem = args.low_mem
+    )
     model.to(device=device)
+
     
     checkpoint = torch.load(args.exp_dir / 'best_model.pt', map_location='cpu')
     print(checkpoint['epoch'], checkpoint['best_val_loss'].item())

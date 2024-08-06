@@ -13,7 +13,10 @@ from collections import defaultdict
 from utils.data.load_data import create_data_loaders
 from utils.common.utils import save_reconstructions, ssim_loss
 from utils.common.loss_function import SSIMLoss, MS_SSIM_L1_LOSS
-from utils.model.varnet import VarNet
+
+# from utils.model.varnet import VarNet
+# from promptMR.pl_modules.promptmr_module import PromptMrModule  # PromptMR 모델을 가져옵니다.
+from promptMR.models.promptmr import PromptMR
 
 # DataAugmentor와 관련된 import 추가
 from MRAugment.mraugment.data_augment import DataAugmentor
@@ -62,9 +65,7 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
         # # Apply gradient checkpointing
         # output = checkpointed_forward(model, kspace, mask)
 
-
         # loss = loss_type(output, target, maximum)
-        
         # loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
         # loss.backward()
 
@@ -79,8 +80,8 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
 
 
         if (iter + 1) % args.gradient_accumulation_steps == 0:
-            scaler.step(optimizer)
-            scaler.update()
+            # scaler.step(optimizer)
+            # scaler.update()
             optimizer.zero_grad()
         
         total_loss += loss.item() * args.gradient_accumulation_steps
@@ -183,9 +184,26 @@ def train(args):
     torch.cuda.set_device(device)
     print('Current cuda device: ', torch.cuda.current_device())
 
-    model = VarNet(num_cascades=args.cascade, 
-                   chans=args.chans, 
-                   sens_chans=args.sens_chans)
+    # PromptMR 모델을 사용하도록 변경
+    model = PromptMR(
+        num_cascades=args.cascade,
+        num_adj_slices=args.num_adj_slices,
+        n_feat0=args.n_feat0,
+        feature_dim = args.feature_dim,
+        prompt_dim = args.prompt_dim,
+        sens_n_feat0=args.sens_n_feat0,
+        sens_feature_dim = args.sens_feature_dim,
+        sens_prompt_dim = args.sens_prompt_dim,
+        len_prompt = args.len_prompt,
+        prompt_size = args.prompt_size,
+        n_enc_cab = args.n_enc_cab,
+        n_dec_cab = args.n_dec_cab,
+        n_skip_cab = args.n_skip_cab,
+        n_bottleneck_cab = args.n_bottleneck_cab,
+        no_use_ca = args.no_use_ca,
+        use_checkpoint=args.use_checkpoint,
+        low_mem = args.low_mem
+    )
     model.to(device=device)
 
     """
