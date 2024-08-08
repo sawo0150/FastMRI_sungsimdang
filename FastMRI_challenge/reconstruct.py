@@ -40,8 +40,8 @@ def parse():
     parser.add_argument('--n_skip_cab', nargs='+', type=int, default=[1, 1, 1], help='Number of skip CABs')
     parser.add_argument('--n_bottleneck_cab', type=int, default=3, help='Number of bottleneck CABs')
     parser.add_argument('--no_use_ca', action='store_true', help='Disable channel attention')
-    parser.add_argument('--use_checkpoint',type=bool, default=True, help='Use gradient checkpointing to save memory')
-    parser.add_argument('--low_mem',type=bool, default=True, help='Use low memory settings')
+    parser.add_argument('--use_checkpoint',type=bool, default=False, help='Use gradient checkpointing to save memory')
+    parser.add_argument('--low_mem',type=bool, default=False, help='Use low memory settings')
 
     
     args = parser.parse_args()
