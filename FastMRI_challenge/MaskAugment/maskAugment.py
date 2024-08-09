@@ -40,10 +40,13 @@ class MaskAugmentor:
 
     def update_acc_probability(self, epoch):
         if epoch < 30:
+            # print("epoch< 30")
             progress = min(1, 0.1+(epoch / self.total_epochs) * 0.4)  # 마지막 epoch에서 0.5이 되도록 설정
         elif epoch< 45:
+            # print("epoch< 45")
             progress = 0.5  # 마지막 epoch에서 0.5이 되도록 설정
         else:
+            # print("epoch< 50")
             progress = 0.8
         self.maskAugProbability = progress
         initial_weight = max(0, 1 - progress)
@@ -52,8 +55,8 @@ class MaskAugmentor:
         return initial_weight, later_weight
 
     def get_acc(self):
-        # epoch = self.current_epoch_fn()  # 현재 epoch를 가져옴
-        # initial_weight, later_weight = self.update_acc_probability(epoch)
+        epoch = self.current_epoch_fn()  # 현재 epoch를 가져옴
+        initial_weight, later_weight = self.update_acc_probability(epoch)
         
         # if random.random() < initial_weight:
         #     return random.choice(self.initial_acc_values)
