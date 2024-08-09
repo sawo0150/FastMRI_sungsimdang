@@ -47,7 +47,7 @@ class MaskAugmentor:
             progress = 0.5  # 마지막 epoch에서 0.5이 되도록 설정
         else:
             # print("epoch< 50")
-            progress = 0.8
+            progress = 0.7
         self.maskAugProbability = progress
         initial_weight = max(0, 1 - progress)
         later_weight = min(1, progress)
