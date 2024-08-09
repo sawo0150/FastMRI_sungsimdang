@@ -64,3 +64,10 @@ epoch : 5350s
 그래서 걍 안쓰기로 함
 
 sungsimV2 : MRprompt 모델 기반
+
+2024/08/10 02시 수정
+sungsimV2.1 - cascade 6까지는 freezing 
+
+cascade 10으로 만들고 끝 부분 4cascade와 sensitivity map만 새로 학습
+
+--> 결국 cascade 개수 늘리는 코드 완성 밑 Debugging 완료!
