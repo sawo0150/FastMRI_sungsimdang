@@ -17,19 +17,21 @@ class MaskAugmentor:
         self.step = step
         self.total_epochs = total_epochs
         self.maskAugProbability = 0
+        self.continuous_one = [[16,17], [16,16],[15,16]]
 
     def generate_mask(self, acc, mask_length):
         mask = np.zeros(mask_length, dtype=np.uint8)
         center = mask_length // 2
-        mask[center - 16:center + 16] = 1
+        leftc, rightc = random.choice(self.continuous_one)
+        mask[center - leftc:center + rightc] = 1
 
         acc = int(acc)  # acc 값을 정수로 변환
         # print(acc)
         left_start = random.randint(0, int(acc-1))
         right_start = random.randint(0, int(acc-1))
         
-        left_indices = list(range(left_start, center - 16, acc))
-        right_indices = list(range(center + 16 + right_start, mask_length, acc))
+        left_indices = list(range(left_start, center - leftc, acc))
+        right_indices = list(range(center + rightc + right_start, mask_length, acc))
 
         indices = left_indices + right_indices
         mask[indices] = 1
@@ -39,8 +41,10 @@ class MaskAugmentor:
     def update_acc_probability(self, epoch):
         if epoch < 30:
             progress = min(1, 0.1+(epoch / self.total_epochs) * 0.4)  # 마지막 epoch에서 0.5이 되도록 설정
-        else:
+        elif epoch< 45:
             progress = 0.5  # 마지막 epoch에서 0.5이 되도록 설정
+        else:
+            progress = 0.8
         self.maskAugProbability = progress
         initial_weight = max(0, 1 - progress)
         later_weight = min(1, progress)
@@ -48,13 +52,13 @@ class MaskAugmentor:
         return initial_weight, later_weight
 
     def get_acc(self):
-        epoch = self.current_epoch_fn()  # 현재 epoch를 가져옴
-        initial_weight, later_weight = self.update_acc_probability(epoch)
+        # epoch = self.current_epoch_fn()  # 현재 epoch를 가져옴
+        # initial_weight, later_weight = self.update_acc_probability(epoch)
         
-        if random.random() < initial_weight:
-            return random.choice(self.initial_acc_values)
-        else:
-            return random.uniform(self.later_acc_range[0], self.later_acc_range[1])
+        # if random.random() < initial_weight:
+        #     return random.choice(self.initial_acc_values)
+        # else:
+        return random.uniform(self.later_acc_range[0], self.later_acc_range[1])
 
     def augment(self, mask):
         epoch = self.current_epoch_fn()  # 현재 epoch를 가져옴
