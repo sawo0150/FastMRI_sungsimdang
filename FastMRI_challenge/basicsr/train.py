@@ -29,7 +29,13 @@ def parse_options(args, is_train=True):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-opt', type=str, required=True, help='Path to option YAML file.')
-    
+    parser.add_argument(
+        '--launcher',
+        choices=['none', 'pytorch', 'slurm'],
+        default='none',
+        help='job launcher')
+    parser.add_argument('--local_rank', type=int, default=0)
+
     #args = parser.parse_args()
     opt = parse(args.opt, is_train=is_train)
 
@@ -50,7 +56,7 @@ def parse_options(args, is_train=True):
     # random seed
     seed = opt.get('manual_seed')
     if seed is None:
-        seed = 1 # seed는 고정시킴
+        seed = 1 # 시드는 고정
         opt['manual_seed'] = seed
     set_random_seed(seed + opt['rank'])
 
@@ -134,7 +140,7 @@ def create_train_val_dataloader(opt, logger):
     return train_loader, train_sampler, val_loader, total_epochs, total_iters
 
 
-def train_naf(args):
+def train_naf():
     # parse options, set distributed setting, set ramdom seed
     opt = parse_options(args, is_train=True)
 
