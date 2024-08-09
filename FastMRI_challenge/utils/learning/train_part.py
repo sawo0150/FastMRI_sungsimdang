@@ -457,11 +457,6 @@ def train2(args):
     # loss_type = SSIMLoss().to(device=device)
     loss_type = MS_SSIM_L1_LOSS().to(device=device)  # 새로 만든 MS_SSIM_L1_LOSS 사용
 
-
-    # Check if a checkpoint exists, and load it if it does
-    start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, optimizer)
-
-
     # DataAugmentor 초기화
     current_epoch_fn = lambda: epoch
     augmentor = DataAugmentor(args, current_epoch_fn)
@@ -493,6 +488,7 @@ def train2(args):
     else:
         val_loss_log = np.empty((0, 2))
     print(val_loss_log)
+    args.num_epochs = args.second_epoch
     for epoch in range(start_epoch, args.second_epoch):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
         p1 = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산

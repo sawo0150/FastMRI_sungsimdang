@@ -95,7 +95,7 @@ if __name__ == '__main__':
     args.max_epochs = args.num_epochs
 
     args.second_epochs = 70
-    args.second_cascade = 9
+    args.second_cascade = 10
     args.second_epoch = 80
 
     args.exp_dir = '../result' / args.net_name / 'checkpoints'
@@ -107,4 +107,5 @@ if __name__ == '__main__':
     args.val_dir.mkdir(parents=True, exist_ok=True)
 
     train1(args)
+    print("train1끝, train2 start!")
     train2(args)
