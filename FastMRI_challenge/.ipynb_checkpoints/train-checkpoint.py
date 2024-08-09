@@ -84,7 +84,6 @@ def parse():
     # naf 인자
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm'], default='pytorch', help='job launcher')
-    parser.add_argument('-opt', type=str, required=True, help='Path to option YAML file.')
     
     
     args = parser.parse_args()

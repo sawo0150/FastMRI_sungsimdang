@@ -74,23 +74,25 @@ class SliceData(Dataset):
         
         return mask, kspace, target, maximum, fname, slice
     
-def create_data_loaders(data_path, args, shuffle=False, isforward=False, augmentor=None, mask_augmentor=None):
-    if isforward == False:
-        max_key_ = args.max_key
-        target_key_ = args.target_key
-    else:
-        max_key_ = -1
-        target_key_ = -1
-    
-    data_storage = SliceData(
-        root=data_path,
-        transform=DataTransform(isforward, max_key_),
-        input_key=args.input_key,
-        target_key=target_key_,
-        augmentor=augmentor,  # augmentor를 전달
-        mask_augmentor=mask_augmentor,  # mask_augmentor를 전달
-        forward=isforward
-    )
+def create_data_loaders(data_path, args, shuffle=False, isforward=False, augmentor=None, mask_augmentor=None, naf==False):
+    if naf ==False:
+        if isforward == False:
+            max_key_ = args.max_key
+            target_key_ = args.target_key
+        else:
+            max_key_ = -1
+            target_key_ = -1
+        
+        data_storage = SliceData(
+            root=data_path,
+            transform=DataTransform(isforward, max_key_),
+            input_key=args.input_key,
+            target_key=target_key_,
+            augmentor=augmentor,  # augmentor를 전달
+            mask_augmentor=mask_augmentor,  # mask_augmentor를 전달
+            forward=isforward
+        )
+        
 
     data_loader = DataLoader(
         dataset=data_storage,

@@ -28,6 +28,9 @@ from torch.optim.lr_scheduler import _LRScheduler
 # MaskAugmentor와 관련된 코드 추가
 import random
 
+#Nafnet과 관련된 import 추가
+from basicsr.train import train_naf
+
 from torch.cuda.amp import autocast, GradScaler
 
 scaler = GradScaler()  # Mixed Precision을 위한 GradScaler 초기화
@@ -308,8 +311,12 @@ def train(args):
             print(
                 f'ForwardTime = {time.perf_counter() - start:.4f}s',
             )
+    
+    #naf code 작성
+    train_naf(args)
 
 
+            
         # # 모델 평가를 위한 외부 스크립트 실행 전에 GPU 메모리 정리
         # torch.cuda.empty_cache()
 
