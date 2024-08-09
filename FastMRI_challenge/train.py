@@ -6,7 +6,7 @@ from pathlib import Path
 
 if os.getcwd() + '/utils/model/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/model/')
-from utils.learning.train_part import train
+from utils.learning.train_part import train1, train2
 
 if os.getcwd() + '/utils/common/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/common/')
@@ -94,6 +94,10 @@ if __name__ == '__main__':
     args.gradient_accumulation_steps = 10
     args.max_epochs = args.num_epochs
 
+    args.second_epochs = 70
+    args.second_cascade = 9
+    args.second_epoch = 80
+
     args.exp_dir = '../result' / args.net_name / 'checkpoints'
     args.val_dir = '../result' / args.net_name / 'reconstructions_val'
     args.main_dir = '../result' / args.net_name / __file__
@@ -102,4 +106,5 @@ if __name__ == '__main__':
     args.exp_dir.mkdir(parents=True, exist_ok=True)
     args.val_dir.mkdir(parents=True, exist_ok=True)
 
-    train(args)
+    train1(args)
+    train2(args)

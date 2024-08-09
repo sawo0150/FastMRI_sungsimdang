@@ -29,6 +29,7 @@ from torch.optim.lr_scheduler import _LRScheduler
 import random
 
 from torch.cuda.amp import autocast, GradScaler
+import gc
 
 scaler = GradScaler()  # Mixed Precision을 위한 GradScaler 초기화
 
@@ -132,7 +133,7 @@ def validate(args, model, data_loader):
     return metric_loss, num_subjects, reconstructions, targets, None, time.perf_counter() - start
 
 
-def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_best):
+def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_best, model_filename='model.pt'):
     torch.save(
         {
             'epoch': epoch,
@@ -142,10 +143,10 @@ def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_bes
             'best_val_loss': best_val_loss,
             'exp_dir': exp_dir
         },
-        f=exp_dir / 'model.pt'
+        f=exp_dir / model_filename
     )
     if is_new_best:
-        shutil.copyfile(exp_dir / 'model.pt', exp_dir / 'best_model.pt')
+        shutil.copyfile(exp_dir / model_filename, exp_dir / f'best_{model_filename}')
 
 
 def download_model(url, fname):
@@ -165,8 +166,8 @@ def download_model(url, fname):
             progress_bar.update(len(chunk))
             fh.write(chunk)
 
-def load_checkpoint(exp_dir, model, optimizer):
-    checkpoint_path = exp_dir / 'model.pt'
+def load_checkpoint(exp_dir, model, optimizer, model_filename='model.pt'):
+    checkpoint_path = exp_dir / model_filename
     if checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model'])
@@ -180,8 +181,7 @@ def load_checkpoint(exp_dir, model, optimizer):
         best_val_loss = float('inf')
     return start_epoch, best_val_loss
 
-        
-def train(args):
+def train1(args):
     device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
     torch.cuda.set_device(device)
     print('Current cuda device: ', torch.cuda.current_device())
@@ -321,3 +321,218 @@ def train(args):
         # os.system(eval_cmd)
 
         # print(f"Reconstruction and evaluation done for epoch {epoch}.")
+
+
+
+def clear_gpu_memory():
+    torch.cuda.empty_cache()
+    gc.collect()
+
+def train2(args):
+    device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
+    torch.cuda.set_device(device)
+    print('Current cuda device: ', torch.cuda.current_device())
+
+    # model2.pt 파일의 존재 여부를 확인
+    model2_path = args.exp_dir / 'model2.pt'
+
+    if model2_path.exists():
+        clear_gpu_memory()
+        # model2.pt가 존재하는 경우
+        print(f"Loading model2 from {model2_path}")
+        # PromptMR 모델을 사용하도록 변경
+        model2 = PromptMR(
+            num_cascades=args.second_cascade,
+            num_adj_slices=args.num_adj_slices,
+            n_feat0=args.n_feat0,
+            feature_dim = args.feature_dim,
+            prompt_dim = args.prompt_dim,
+            sens_n_feat0=args.sens_n_feat0,
+            sens_feature_dim = args.sens_feature_dim,
+            sens_prompt_dim = args.sens_prompt_dim,
+            len_prompt = args.len_prompt,
+            prompt_size = args.prompt_size,
+            n_enc_cab = args.n_enc_cab,
+            n_dec_cab = args.n_dec_cab,
+            n_skip_cab = args.n_skip_cab,
+            n_bottleneck_cab = args.n_bottleneck_cab,
+            no_use_ca = args.no_use_ca,
+            use_checkpoint=args.use_checkpoint,
+            low_mem = args.low_mem
+        )
+        model2.to(device=device)
+
+        # 첫 6개의 cascade block을 동결
+        for i in range(args.cascade):
+            for param in model2.cascades[i].parameters():
+                param.requires_grad = False  # 동결
+
+        # 옵티마이저를 동결된 파라미터 제외 후 생성
+        optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
+
+        # model2.pt 로드 (optimizer 포함)
+        start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, optimizer=optimizer, model_filename='model2.pt')
+
+    else:
+        # PromptMR 모델을 사용하도록 변경
+        model1 = PromptMR(
+            num_cascades=args.cascade,
+            num_adj_slices=args.num_adj_slices,
+            n_feat0=args.n_feat0,
+            feature_dim = args.feature_dim,
+            prompt_dim = args.prompt_dim,
+            sens_n_feat0=args.sens_n_feat0,
+            sens_feature_dim = args.sens_feature_dim,
+            sens_prompt_dim = args.sens_prompt_dim,
+            len_prompt = args.len_prompt,
+            prompt_size = args.prompt_size,
+            n_enc_cab = args.n_enc_cab,
+            n_dec_cab = args.n_dec_cab,
+            n_skip_cab = args.n_skip_cab,
+            n_bottleneck_cab = args.n_bottleneck_cab,
+            no_use_ca = args.no_use_ca,
+            use_checkpoint=args.use_checkpoint,
+            low_mem = args.low_mem
+        )
+        model1.to(device=device)
+
+        # model1의 학습된 가중치를 불러옵니다.
+        optimizer = torch.optim.RAdam(model1.parameters(), args.lr)
+        start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model1, optimizer=optimizer, model_filename='model.pt')
+
+        # PromptMR 모델을 사용하도록 변경
+        model2 = PromptMR(
+            num_cascades=args.second_cascade,
+            num_adj_slices=args.num_adj_slices,
+            n_feat0=args.n_feat0,
+            feature_dim = args.feature_dim,
+            prompt_dim = args.prompt_dim,
+            sens_n_feat0=args.sens_n_feat0,
+            sens_feature_dim = args.sens_feature_dim,
+            sens_prompt_dim = args.sens_prompt_dim,
+            len_prompt = args.len_prompt,
+            prompt_size = args.prompt_size,
+            n_enc_cab = args.n_enc_cab,
+            n_dec_cab = args.n_dec_cab,
+            n_skip_cab = args.n_skip_cab,
+            n_bottleneck_cab = args.n_bottleneck_cab,
+            no_use_ca = args.no_use_ca,
+            use_checkpoint=args.use_checkpoint,
+            low_mem = args.low_mem
+        )
+        model2.to(device=device)
+        """
+        # using pretrained parameter
+        VARNET_FOLDER = "https://dl.fbaipublicfiles.com/fastMRI/trained_models/varnet/"
+        MODEL_FNAMES = "brain_leaderboard_state_dict.pt"
+        if not Path(MODEL_FNAMES).exists():
+            url_root = VARNET_FOLDER
+            download_model(url_root + MODEL_FNAMES, MODEL_FNAMES)
+
+        pretrained = torch.load(MODEL_FNAMES)
+        pretrained_copy = copy.deepcopy(pretrained)
+        for layer in pretrained_copy.keys():
+            if layer.split('.',2)[1].isdigit() and (args.cascade <= int(layer.split('.',2)[1]) <=11):
+                del pretrained[layer]
+        model.load_state_dict(pretrained)
+        """
+
+        # model1의 가중치를 model2로 복사합니다.
+        # Sensitivity map 부분 복사 (동결하지 않고 학습 가능하도록 유지)
+        model2.sens_net.load_state_dict(copy.deepcopy(model1.sens_net.state_dict()))
+
+        # model1의 첫 6개의 cascade block을 복사하고 동결
+        for i in range(args.cascade):  # 첫 6개의 cascade block을 복사
+            model2.cascades[i] = copy.deepcopy(model1.cascades[i])
+            for param in model2.cascades[i].parameters():
+                param.requires_grad = False  # 동결
+
+        # model1의 가중치를 복사한 후 GPU VRAM에서 model1 삭제하여 메모리 확보
+        del model1
+        clear_gpu_memory()
+
+        # 옵티마이저를 동결된 파라미터 제외 후 생성
+        optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
+
+    # loss_type = SSIMLoss().to(device=device)
+    loss_type = MS_SSIM_L1_LOSS().to(device=device)  # 새로 만든 MS_SSIM_L1_LOSS 사용
+
+
+    # Check if a checkpoint exists, and load it if it does
+    start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, optimizer)
+
+
+    # DataAugmentor 초기화
+    current_epoch_fn = lambda: epoch
+    augmentor = DataAugmentor(args, current_epoch_fn)
+
+    # MaskAugmentor 초기화
+    mask_augmentor = MaskAugmentor(current_epoch_fn, total_epochs=args.num_epochs)
+
+    val_loader = create_data_loaders(
+        data_path=args.data_path_val,
+        args=args
+    )
+    augmentor_arg = augmentor if augmentor.aug_on else None
+    mask_augmentor_arg = mask_augmentor if args.mask_aug_on else None
+    print(augmentor_arg)
+    print(mask_augmentor_arg)
+    train_loader = create_data_loaders(
+        data_path=args.data_path_train,
+        args=args,
+        shuffle=True,
+        augmentor=augmentor_arg,      # augmentor가 None이면 전달되지 않음
+        mask_augmentor=mask_augmentor_arg  # mask_augmentor가 None이면 전달되지 않음
+    )
+
+    val_loss_log_file = os.path.join(args.val_loss_dir, "val_loss_log.npy")
+
+    # 기존 val_loss_log 파일이 존재하면 불러오기, 없으면 빈 배열 생성
+    if os.path.exists(val_loss_log_file):
+        val_loss_log = np.load(val_loss_log_file)
+    else:
+        val_loss_log = np.empty((0, 2))
+    print(val_loss_log)
+    for epoch in range(start_epoch, args.second_epoch):
+        print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
+        p1 = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산
+        print(f"MRAugmentation probability at epoch {epoch}: {p1}")
+        randomacc = mask_augmentor.get_acc()  # 현재 epoch에 기반한 증강 확률을 계산
+        p2 = mask_augmentor.maskAugProbability  # 현재 epoch에 기반한 증강 확률을 계산
+        print(f"mask_Augmentation probability at epoch {epoch}: {p2}")
+        print(randomacc)
+        
+
+        train_loss, train_time = train_epoch(args, epoch, model2, train_loader, optimizer, loss_type, augmentor, mask_augmentor)
+        val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model2, val_loader)
+        
+        val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
+        file_path = os.path.join(args.val_loss_dir, "val_loss_log")
+        np.save(file_path, val_loss_log)
+        print(f"loss file saved! {file_path}")
+
+        # train_loss = 0 
+        # train_time = 0 
+        train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
+        val_loss = torch.tensor(val_loss).cuda(non_blocking=True)
+        num_subjects = torch.tensor(num_subjects).cuda(non_blocking=True)
+
+        val_loss = val_loss / num_subjects
+
+        is_new_best = val_loss < best_val_loss
+        best_val_loss = min(best_val_loss, val_loss)
+
+        print("complete")
+        save_model(args, args.exp_dir, epoch + 1, model2, optimizer, best_val_loss, is_new_best, model_filename='model2.pt')
+        print(
+            f'Epoch = [{epoch:4d}/{args.num_epochs:4d}] TrainLoss = {train_loss:.4g} '
+            f'ValLoss = {val_loss:.4g} TrainTime = {train_time:.4f}s ValTime = {val_time:.4f}s',
+        )
+
+        if is_new_best:
+            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@NewRecord@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            start = time.perf_counter()
+            save_reconstructions(reconstructions, args.val_dir, targets=targets, inputs=inputs)
+            print(
+                f'ForwardTime = {time.perf_counter() - start:.4f}s',
+            )
