@@ -181,6 +181,37 @@ def load_checkpoint(exp_dir, model, optimizer, model_filename='model.pt'):
         best_val_loss = float('inf')
     return start_epoch, best_val_loss
 
+def load_checkpoint2(exp_dir, model, optimizer, model_filename='model.pt'):
+    checkpoint_path = exp_dir / model_filename
+    if checkpoint_path.exists():
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model'])
+        
+        if optimizer is not None:
+            # 기존 옵티마이저 상태 사전 불러오기
+            opt_state_dict = checkpoint['optimizer']
+
+            # 옵티마이저의 파라미터 그룹을 현재 모델의 파라미터 그룹과 맞춰줌
+            opt_state_dict['param_groups'] = [
+                {
+                    **group,
+                    'params': [p for p in model.parameters() if p.requires_grad]
+                }
+                for group in opt_state_dict['param_groups']
+            ]
+
+            # 수정된 상태 사전 로드
+            optimizer.load_state_dict(opt_state_dict)
+
+        start_epoch = checkpoint['epoch']
+        best_val_loss = checkpoint['best_val_loss']
+        print(f"Checkpoint loaded. Resuming from epoch {start_epoch}, with best validation loss {best_val_loss:.4g}.")
+    else:
+        print("No checkpoint found. Starting from scratch.")
+        start_epoch = 0
+        best_val_loss = float('inf')
+    return start_epoch, best_val_loss
+
 def train1(args):
     device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
     torch.cuda.set_device(device)
@@ -327,6 +358,21 @@ def train1(args):
 def clear_gpu_memory():
     torch.cuda.empty_cache()
     gc.collect()
+    
+def filter_optimizer_state_dict(optimizer_state_dict, model):
+    """필요하지 않은 파라미터 그룹을 옵티마이저 상태에서 제거."""
+    new_state_dict = optimizer_state_dict.copy()
+    param_ids = {id(p) for p in model.parameters() if p.requires_grad}
+    
+    new_groups = []
+    for group in optimizer_state_dict['param_groups']:
+        new_params = [p_id for p_id in group['params'] if p_id in param_ids]
+        if new_params:
+            group['params'] = new_params
+            new_groups.append(group)
+
+    new_state_dict['param_groups'] = new_groups
+    return new_state_dict
 
 def train2(args):
     device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
@@ -371,7 +417,7 @@ def train2(args):
         optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
 
         # model2.pt 로드 (optimizer 포함)
-        start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, optimizer=optimizer, model_filename='model2.pt')
+        start_epoch, best_val_loss = load_checkpoint2(args.exp_dir, model2, optimizer=optimizer, model_filename='model2.pt')
 
     else:
         # PromptMR 모델을 사용하도록 변경
