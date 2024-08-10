@@ -414,6 +414,10 @@ def train2(args):
             for param in model2.cascades[i].parameters():
                 param.requires_grad = False  # 동결
 
+        # Sensitivity map을 동결
+        for param in model2.sens_net.parameters():
+            param.requires_grad = False  # 동결
+
         # 옵티마이저를 동결된 파라미터 제외 후 생성
         optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
 
@@ -494,6 +498,10 @@ def train2(args):
             model2.cascades[i] = copy.deepcopy(model1.cascades[i])
             for param in model2.cascades[i].parameters():
                 param.requires_grad = False  # 동결
+        
+        # Sensitivity map을 동결
+        for param in model2.sens_net.parameters():
+            param.requires_grad = False  # 동결
 
         # model1의 가중치를 복사한 후 GPU VRAM에서 model1 삭제하여 메모리 확보
         del model1

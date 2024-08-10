@@ -51,6 +51,9 @@ def parse():
 if __name__ == '__main__':
     args = parse()
     args.exp_dir = '../result' / args.net_name / 'checkpoints'
+
+    
+    args.second_cascade = 10
     
     public_acc, private_acc = None, None
 

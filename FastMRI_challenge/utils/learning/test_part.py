@@ -38,32 +38,68 @@ def forward(args):
     #                sens_chans=args.sens_chans)
     # model.to(device=device)
 
-    model = PromptMR(
-        num_cascades=args.cascade,
-        num_adj_slices=args.num_adj_slices,
-        n_feat0=args.n_feat0,
-        feature_dim = args.feature_dim,
-        prompt_dim = args.prompt_dim,
-        sens_n_feat0=args.sens_n_feat0,
-        sens_feature_dim = args.sens_feature_dim,
-        sens_prompt_dim = args.sens_prompt_dim,
-        len_prompt = args.len_prompt,
-        prompt_size = args.prompt_size,
-        n_enc_cab = args.n_enc_cab,
-        n_dec_cab = args.n_dec_cab,
-        n_skip_cab = args.n_skip_cab,
-        n_bottleneck_cab = args.n_bottleneck_cab,
-        no_use_ca = args.no_use_ca,
-        use_checkpoint=args.use_checkpoint,
-        low_mem = args.low_mem
-    )
-    model.to(device=device)
+    
+    # model2.pt 파일의 존재 여부를 확인
+    model2_path = args.exp_dir / 'model2.pt'
 
-    
-    checkpoint = torch.load(args.exp_dir / 'best_model.pt', map_location='cpu')
-    print(checkpoint['epoch'], checkpoint['best_val_loss'].item())
-    model.load_state_dict(checkpoint['model'])
-    
-    forward_loader = create_data_loaders(data_path = args.data_path, args = args, isforward = True)
-    reconstructions, inputs = test(args, model, forward_loader)
-    save_reconstructions(reconstructions, args.forward_dir, inputs=inputs)
+    if model2_path.exists():
+        model = PromptMR(
+            num_cascades=args.second_cascade,
+            num_adj_slices=args.num_adj_slices,
+            n_feat0=args.n_feat0,
+            feature_dim = args.feature_dim,
+            prompt_dim = args.prompt_dim,
+            sens_n_feat0=args.sens_n_feat0,
+            sens_feature_dim = args.sens_feature_dim,
+            sens_prompt_dim = args.sens_prompt_dim,
+            len_prompt = args.len_prompt,
+            prompt_size = args.prompt_size,
+            n_enc_cab = args.n_enc_cab,
+            n_dec_cab = args.n_dec_cab,
+            n_skip_cab = args.n_skip_cab,
+            n_bottleneck_cab = args.n_bottleneck_cab,
+            no_use_ca = args.no_use_ca,
+            use_checkpoint=args.use_checkpoint,
+            low_mem = args.low_mem
+        )
+        model.to(device=device)
+
+        
+        checkpoint = torch.load(args.exp_dir / 'model2.pt', map_location='cpu')
+        # checkpoint = torch.load(args.exp_dir / 'best_model2.pt', map_location='cpu')
+        print(checkpoint['epoch'], checkpoint['best_val_loss'].item())
+        model.load_state_dict(checkpoint['model'])
+        
+        forward_loader = create_data_loaders(data_path = args.data_path, args = args, isforward = True)
+        reconstructions, inputs = test(args, model, forward_loader)
+        save_reconstructions(reconstructions, args.forward_dir, inputs=inputs)
+    else:
+        model = PromptMR(
+            num_cascades=args.cascade,
+            num_adj_slices=args.num_adj_slices,
+            n_feat0=args.n_feat0,
+            feature_dim = args.feature_dim,
+            prompt_dim = args.prompt_dim,
+            sens_n_feat0=args.sens_n_feat0,
+            sens_feature_dim = args.sens_feature_dim,
+            sens_prompt_dim = args.sens_prompt_dim,
+            len_prompt = args.len_prompt,
+            prompt_size = args.prompt_size,
+            n_enc_cab = args.n_enc_cab,
+            n_dec_cab = args.n_dec_cab,
+            n_skip_cab = args.n_skip_cab,
+            n_bottleneck_cab = args.n_bottleneck_cab,
+            no_use_ca = args.no_use_ca,
+            use_checkpoint=args.use_checkpoint,
+            low_mem = args.low_mem
+        )
+        model.to(device=device)
+
+        
+        checkpoint = torch.load(args.exp_dir / 'best_model.pt', map_location='cpu')
+        print(checkpoint['epoch'], checkpoint['best_val_loss'].item())
+        model.load_state_dict(checkpoint['model'])
+        
+        forward_loader = create_data_loaders(data_path = args.data_path, args = args, isforward = True)
+        reconstructions, inputs = test(args, model, forward_loader)
+        save_reconstructions(reconstructions, args.forward_dir, inputs=inputs)
