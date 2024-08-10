@@ -94,6 +94,8 @@ if __name__ == '__main__':
     args.gradient_accumulation_steps = 10
     args.max_epochs = args.num_epochs
 
+    args.update_interval_rate = 4
+
     args.second_epochs = 70
     args.second_cascade = 10
     args.second_epoch = 80
