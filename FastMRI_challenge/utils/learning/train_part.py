@@ -192,15 +192,16 @@ def load_checkpoint2(exp_dir, model, optimizer, model_filename='model.pt'):
             opt_state_dict = checkpoint['optimizer']
 
             # 옵티마이저의 파라미터 그룹을 현재 모델의 파라미터 그룹과 맞춰줌
-            opt_state_dict['param_groups'] = [
-                {
-                    **group,
-                    'params': [p for p in model.parameters() if p.requires_grad]
-                }
-                for group in opt_state_dict['param_groups']
-            ]
+            # 'params'를 현재 모델의 requires_grad=True인 파라미터들로 대체
+            new_param_groups = []
+            for group in opt_state_dict['param_groups']:
+                new_group = group.copy()
+                new_group['params'] = [p for p in model.parameters() if p.requires_grad]
+                new_param_groups.append(new_group)
 
-            # 수정된 상태 사전 로드
+            opt_state_dict['param_groups'] = new_param_groups
+
+            # 필터링된 옵티마이저 상태 사전을 옵티마이저에 로드
             optimizer.load_state_dict(opt_state_dict)
 
         start_epoch = checkpoint['epoch']
@@ -418,6 +419,7 @@ def train2(args):
 
         # model2.pt 로드 (optimizer 포함)
         start_epoch, best_val_loss = load_checkpoint2(args.exp_dir, model2, optimizer=optimizer, model_filename='model2.pt')
+        clear_gpu_memory()
 
     else:
         # PromptMR 모델을 사용하도록 변경
