@@ -25,7 +25,7 @@ from basicsr.utils.dist_util import get_dist_info, init_dist
 from basicsr.utils.options import dict2str, parse
 
 
-def parse_options(args, is_train=True):
+def parse_options(is_train=True):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-opt', type=str, required=True, help='Path to option YAML file.')
@@ -36,7 +36,10 @@ def parse_options(args, is_train=True):
         help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
 
-    #args = parser.parse_args()
+    parser.add_argument('--input_path', type=str, required=False, help='The path to the input image. For single image inference only.')
+    parser.add_argument('--output_path', type=str, required=False, help='The path to the output image. For single image inference only.')
+
+    args = parser.parse_args()
     opt = parse(args.opt, is_train=is_train)
 
     # distributed settings
@@ -56,7 +59,7 @@ def parse_options(args, is_train=True):
     # random seed
     seed = opt.get('manual_seed')
     if seed is None:
-        seed = 1 # 시드는 고정
+        seed = random.randint(1, 10000)
         opt['manual_seed'] = seed
     set_random_seed(seed + opt['rank'])
 
@@ -140,9 +143,9 @@ def create_train_val_dataloader(opt, logger):
     return train_loader, train_sampler, val_loader, total_epochs, total_iters
 
 
-def train_naf():
+def main():
     # parse options, set distributed setting, set ramdom seed
-    opt = parse_options(args, is_train=True)
+    opt = parse_options(is_train=True)
 
     torch.backends.cudnn.benchmark = True
     # torch.backends.cudnn.deterministic = True
