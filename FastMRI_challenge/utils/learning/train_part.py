@@ -29,7 +29,7 @@ from torch.optim.lr_scheduler import _LRScheduler
 import random
 
 #Nafnet과 관련된 import 추가
-from basicsr.train import train_naf
+from NAFNet.basicsr.utils.train import train_naf
 
 from torch.cuda.amp import autocast, GradScaler
 
