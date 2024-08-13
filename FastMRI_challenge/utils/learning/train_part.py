@@ -10,9 +10,9 @@ from pathlib import Path
 import copy
 
 from collections import defaultdict
-from utils.data.load_data import create_data_loaders
+from utils.data.load_data import create_data_loaders, create_data_loaders2
 from utils.common.utils import save_reconstructions, ssim_loss
-from utils.common.loss_function import SSIMLoss, MS_SSIM_L1_LOSS
+from utils.common.loss_function import SSIMLoss, MS_SSIM_L1_LOSS, MS_SSIM_L1_LOSS2
 
 # from utils.model.varnet import VarNet
 # from promptMR.pl_modules.promptmr_module import PromptMrModule  # PromptMR 모델을 가져옵니다.
@@ -31,6 +31,9 @@ import random
 from torch.cuda.amp import autocast, GradScaler
 import gc
 import fastmri
+
+# torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.benchmark = False
 
 
 scaler = GradScaler()  # Mixed Precision을 위한 GradScaler 초기화
@@ -110,14 +113,14 @@ def train_epoch2(args, epoch, model, data_loader, optimizers, loss_type, augment
     
 
     # Mixed Precision을 위한 GradScaler 초기화
-    scalers = [GradScaler() for _ in range(args.second_cascade - args.cascade)]
+    scalers = [GradScaler() for _ in range(args.second_cascade - args.pre_cascade)]
 
     # Gradient accumulation을 위한 변수
-    iter_counters = [0] * (args.second_cascade - args.cascade)  # 각 cascade에 대한 iteration counter
+    iter_counters = [0] * (args.second_cascade - args.pre_cascade)  # 각 cascade에 대한 iteration counter
     # update_intervals 리스트를 생성
-    update_intervals = [(args.update_interval_rate ** ((args.second_cascade - args.cascade) - i+1)) for i in range(args.second_cascade - args.cascade)]
+    update_intervals = [(args.update_interval_rate ** ((args.second_cascade - args.pre_cascade) - i+2)) for i in range(args.second_cascade - args.pre_cascade)]
     print(update_intervals)
-    accum_loss = [0] * (args.second_cascade - args.cascade)  # 각 cascade에 대한 누적 손실
+    accum_loss = [0] * (args.second_cascade - args.pre_cascade)  # 각 cascade에 대한 누적 손실
 
     for iter, data in enumerate(data_loader):
         mask, kspace, target, maximum, _, _ = data
@@ -136,17 +139,16 @@ def train_epoch2(args, epoch, model, data_loader, optimizers, loss_type, augment
             # Sensitivity map은 한 번만 계산
             sens_map = model.sens_net(kspace, mask)
 
-            for i in range(args.cascade):  # 첫 6개의 cascade
+            for i in range(args.pre_cascade):  # 첫 6개의 cascade
                 kspace_pred = model.cascades[i](kspace_pred, kspace, mask, sens_map)
 
         # 나머지 3개의 cascade를 하나씩 처리하여 학습
         for i, (optimizer, scaler) in enumerate(zip(optimizers, scalers)):
             # Optimizer 초기화
-            optimizer.zero_grad()
 
             with autocast():
                 # 해당 cascade를 통해 k-space output 생성
-                kspace_pred = model.cascades[args.cascade + i](kspace_pred, kspace, mask, model.sens_net(kspace))
+                kspace_pred = model.cascades[args.pre_cascade + i](kspace_pred, kspace, mask, sens_map)
                 kspace_pred = torch.chunk(kspace_pred, model.num_adj_slices, dim=1)[model.center_slice]
 
                 result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
@@ -155,6 +157,8 @@ def train_epoch2(args, epoch, model, data_loader, optimizers, loss_type, augment
                 height = result.shape[-2]
                 width = result.shape[-1]
                 result = result[..., (height - 384) // 2 : 384 + (height - 384) // 2, (width - 384) // 2 : 384 + (width - 384) // 2]
+                # print(f"Result tensor shape: {result.shape}")
+                # print(f"Target tensor shape: {target.shape}")
 
                 # 손실 계산 및 누적
                 loss = loss_type(result, target, maximum)
@@ -163,11 +167,14 @@ def train_epoch2(args, epoch, model, data_loader, optimizers, loss_type, augment
                 
             # Mixed Precision에서 Gradient Accumulation
             scaler.scale(loss).backward()
+            # scaler.scale(loss).backward(retain_graph=True)
+
 
             if (iter + 1) % update_intervals[i] == 0:
                 # Optimizer를 사용하여 파라미터 업데이트
                 scaler.step(optimizer)
                 scaler.update()
+                optimizer.zero_grad()
 
                 # 누적 손실 초기화
                 accum_loss[i] = 0
@@ -223,7 +230,7 @@ def validate(args, model, data_loader):
     return metric_loss, num_subjects, reconstructions, targets, None, time.perf_counter() - start
 
 
-def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_best, model_filename='model.pt'):
+def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_best, model_filename='model06.pt'):
     torch.save(
         {
             'epoch': epoch,
@@ -271,7 +278,7 @@ def download_model(url, fname):
             progress_bar.update(len(chunk))
             fh.write(chunk)
 
-def load_checkpoint(exp_dir, model, optimizer, model_filename='model.pt'):
+def load_checkpoint(exp_dir, model, optimizer, model_filename='model06.pt'):
     checkpoint_path = exp_dir / model_filename
     if checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path)
@@ -294,7 +301,13 @@ def load_checkpoint2(exp_dir, model, optimizers, model_filename='model.pt'):
         
         if optimizers is not None:
             for opt, opt_state in zip(optimizers, checkpoint['optimizers']):
-                opt.load_state_dict(opt_state)
+                try:
+                    opt.load_state_dict(opt_state)
+                except ValueError as e:
+                    print(f"Warning: {e}")
+                    print("Optimizer state dict contains a parameter group that doesn't match the size of optimizer's group. Ignoring the optimizer state.")
+                    # Optimizer의 파라미터 그룹이 불일치할 경우, 새로운 상태로 덮어씁니다.
+                    continue
 
         start_epoch = checkpoint['epoch']
         best_val_loss = checkpoint['best_val_loss']
@@ -467,18 +480,13 @@ def filter_optimizer_state_dict(optimizer_state_dict, model):
     new_state_dict['param_groups'] = new_groups
     return new_state_dict
 
-def train2(args):
-    device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
-    torch.cuda.set_device(device)
-    print('Current cuda device: ', torch.cuda.current_device())
-
-    # model2.pt 파일의 존재 여부를 확인
-    model2_path = args.exp_dir / 'model2.pt'
-
-    if model2_path.exists():
+def initialize_model_and_optimizer(args, current_cascade_index, device, model_pt_filename, pre_model_pt_filename):
+    model_path = args.exp_dir / model_pt_filename
+    
+    if model_path.exists():
         clear_gpu_memory()
         # model2.pt가 존재하는 경우
-        print(f"Loading model2 from {model2_path}")
+        print(f"Loading model2 from {model_path}")
         # PromptMR 모델을 사용하도록 변경
         model2 = PromptMR(
             num_cascades=args.second_cascade,
@@ -502,7 +510,7 @@ def train2(args):
         model2.to(device=device)
 
         # 첫 6개의 cascade block을 동결
-        for i in range(args.cascade):
+        for i in range(args.pre_cascade):
             for param in model2.cascades[i].parameters():
                 param.requires_grad = False  # 동결
 
@@ -511,16 +519,16 @@ def train2(args):
             param.requires_grad = False  # 동결
 
         # 마지막 3개의 cascade를 위한 별도의 optimizer 생성
-        optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.cascades[i].parameters()), args.lr) for i in range(args.cascade, args.second_cascade)]
+        optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.cascades[i].parameters()), args.lr) for i in range(args.pre_cascade, args.second_cascade)]
 
         # model2.pt 로드 (optimizer 포함)
-        start_epoch, best_val_loss = load_checkpoint2(args.exp_dir, model2, optimizers, model_filename='model2.pt')
+        start_epoch, best_val_loss = load_checkpoint2(args.exp_dir, model2, optimizers, model_filename=model_pt_filename)
         clear_gpu_memory()
 
     else:
         # PromptMR 모델을 사용하도록 변경
         model1 = PromptMR(
-            num_cascades=args.cascade,
+            num_cascades=args.pre_cascade,
             num_adj_slices=args.num_adj_slices,
             n_feat0=args.n_feat0,
             feature_dim = args.feature_dim,
@@ -542,7 +550,15 @@ def train2(args):
 
         # model1의 학습된 가중치를 불러옵니다.
         optimizer = torch.optim.RAdam(model1.parameters(), args.lr)
-        start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model1, optimizer=optimizer, model_filename='model.pt')
+
+        # 마지막 3개의 cascade를 위한 별도의 optimizer 생성
+        optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model1.cascades[i].parameters()), args.lr) for i in range(args.pre_cascade-1, args.second_cascade-1)]
+
+        
+        if current_cascade_index == 0:
+            start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model1, optimizer=optimizer, model_filename=pre_model_pt_filename)
+        else :
+            start_epoch, best_val_loss = load_checkpoint2(args.exp_dir, model1, optimizers=optimizers, model_filename=pre_model_pt_filename)
 
         # PromptMR 모델을 사용하도록 변경
         model2 = PromptMR(
@@ -586,7 +602,7 @@ def train2(args):
         model2.sens_net.load_state_dict(copy.deepcopy(model1.sens_net.state_dict()))
 
         # model1의 첫 6개의 cascade block을 복사하고 동결
-        for i in range(args.cascade):  # 첫 6개의 cascade block을 복사
+        for i in range(args.pre_cascade):  # 첫 6개의 cascade block을 복사
             model2.cascades[i] = copy.deepcopy(model1.cascades[i])
             for param in model2.cascades[i].parameters():
                 param.requires_grad = False  # 동결
@@ -600,7 +616,43 @@ def train2(args):
         clear_gpu_memory()
 
         # 마지막 3개의 cascade를 위한 별도의 optimizer 생성
-        optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.cascades[i].parameters()), args.lr) for i in range(args.cascade, args.second_cascade)]
+        optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.cascades[i].parameters()), args.lr) for i in range(args.pre_cascade, args.second_cascade)]
+
+    return model2, optimizers, start_epoch, best_val_loss
+
+
+def train2(args):
+    device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
+    torch.cuda.set_device(device)
+    print('Current cuda device: ', torch.cuda.current_device())
+
+    # val_loss_log 파일 로드
+    val_loss_log_file = os.path.join(args.val_loss_dir, "val_loss_log.npy")
+    if os.path.exists(val_loss_log_file):
+        val_loss_log = np.load(val_loss_log_file)
+    else:
+        val_loss_log = np.empty((0, 2))
+
+    if val_loss_log.size > 0:
+        start_epoch = int(val_loss_log[-1, 0]) + 1
+    else:
+        start_epoch = 0
+    current_cascade_index = 0
+    for i, second_epoch in enumerate(args.second_epoch_list):
+        if start_epoch < second_epoch:
+            current_cascade_index = i
+            args.num_epochs = second_epoch
+            args.pre_cascade = args.cascade + i
+            args.second_cascade = args.cascade + i+ 1
+            break
+    print("cascade개수 : ", args.cascade, args.pre_cascade, args.second_cascade, current_cascade_index)
+
+    # Cascade 개수를 반영한 모델 파일 이름 설정
+    pre_model_pt_filename = f'model{args.pre_cascade:02d}.pt'
+    model_pt_filename = f'model{args.second_cascade:02d}.pt'
+    best_model_filename = f'best_model{args.second_cascade:02d}.pt'
+
+    model2, optimizers, start_epoch, best_val_loss = initialize_model_and_optimizer(args, current_cascade_index, device, model_pt_filename, pre_model_pt_filename)
 
     # loss_type = SSIMLoss().to(device=device)
     loss_type = MS_SSIM_L1_LOSS().to(device=device)  # 새로 만든 MS_SSIM_L1_LOSS 사용
@@ -626,6 +678,7 @@ def train2(args):
         shuffle=True,
         augmentor=augmentor_arg,      # augmentor가 None이면 전달되지 않음
         mask_augmentor=mask_augmentor_arg  # mask_augmentor가 None이면 전달되지 않음
+        # num_workers=4  # 여기에서 num_workers를 설정
     )
 
     val_loss_log_file = os.path.join(args.val_loss_dir, "val_loss_log.npy")
@@ -636,9 +689,25 @@ def train2(args):
     else:
         val_loss_log = np.empty((0, 2))
     print(val_loss_log)
-    args.num_epochs = args.second_epoch
-    for epoch in range(start_epoch, args.second_epoch):
+
+    # args.num_epochs = args.second_epoch
+    for epoch in range(start_epoch, args.num_epochs):
+        # Epoch와 second_epoch_list를 비교하여 cascade 조정
+        if epoch >= args.second_epoch_list[current_cascade_index]:
+            current_cascade_index += 1
+            args.num_epochs = second_epoch
+            args.pre_cascade = args.cascade + current_cascade_index
+            args.second_cascade = args.cascade + current_cascade_index+ 1
+
+            model_pt_filename = f'model{args.second_cascade:02d}.pt'
+            pre_model_pt_filename = f'model{args.pre_cascade:02d}.pt'
+            
+            # Model 및 optimizer 초기화
+            model2, optimizers, _, best_val_loss = initialize_model_and_optimizer(args, device, model_pt_filename, pre_model_pt_filename)
+
+
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
+        print("cascade개수 : ", args.cascade, args.pre_cascade, args.second_cascade, current_cascade_index)
         p1 = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산
         print(f"MRAugmentation probability at epoch {epoch}: {p1}")
         randomacc = mask_augmentor.get_acc()  # 현재 epoch에 기반한 증강 확률을 계산
@@ -667,7 +736,7 @@ def train2(args):
         best_val_loss = min(best_val_loss, val_loss)
 
         print("complete")
-        save_model2(args, args.exp_dir, epoch + 1, model2, optimizers, best_val_loss, is_new_best, model_filename='model2.pt')
+        save_model2(args, args.exp_dir, epoch + 1, model2, optimizers, best_val_loss, is_new_best, model_filename=model_pt_filename)
         print(
             f'Epoch = [{epoch:4d}/{args.num_epochs:4d}] TrainLoss = {train_loss:.4g} '
             f'ValLoss = {val_loss:.4g} TrainTime = {train_time:.4f}s ValTime = {val_time:.4f}s',

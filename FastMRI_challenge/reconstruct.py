@@ -41,7 +41,7 @@ def parse():
     parser.add_argument('--n_bottleneck_cab', type=int, default=3, help='Number of bottleneck CABs')
     parser.add_argument('--no_use_ca', action='store_true', help='Disable channel attention')
     parser.add_argument('--use_checkpoint',type=bool, default=False, help='Use gradient checkpointing to save memory')
-    parser.add_argument('--low_mem',type=bool, default=False, help='Use low memory settings')
+    parser.add_argument('--low_mem',type=bool, default=True, help='Use low memory settings')
 
     
     args = parser.parse_args()
@@ -51,9 +51,14 @@ def parse():
 if __name__ == '__main__':
     args = parse()
     args.exp_dir = '../result' / args.net_name / 'checkpoints'
+    args.val_loss_dir = '../result' / args.net_name
 
-    
+    args.num_epochs = 65
+    args.second_epoch_list = [126, 250, 400, 500, 600]
+
     args.second_cascade = 10
+
+    args.num_workers = 8
     
     public_acc, private_acc = None, None
 

@@ -94,11 +94,13 @@ if __name__ == '__main__':
     args.gradient_accumulation_steps = 10
     args.max_epochs = args.num_epochs
 
-    args.update_interval_rate = 4
+    args.update_interval_rate = 2
+    args.num_workers = 8
 
     args.second_epochs = 70
-    args.second_cascade = 10
-    args.second_epoch = 80
+    args.pre_cascade = 6
+    args.second_cascade = 7
+    args.second_epoch_list = [126, 250, 400, 500, 600]
 
     args.exp_dir = '../result' / args.net_name / 'checkpoints'
     args.val_dir = '../result' / args.net_name / 'reconstructions_val'
