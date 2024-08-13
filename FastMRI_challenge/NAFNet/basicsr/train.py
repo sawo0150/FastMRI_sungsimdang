@@ -143,7 +143,7 @@ def create_train_val_dataloader(opt, logger):
     return train_loader, train_sampler, val_loader, total_epochs, total_iters
 
 
-def main():
+def train_naf():
     # parse options, set distributed setting, set ramdom seed
     opt = parse_options(is_train=True)
 
