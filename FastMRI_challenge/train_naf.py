@@ -6,7 +6,7 @@ from pathlib import Path
 
 if os.getcwd() + '/utils/model/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/model/')
-from utils.learning.train_part import train1, train2
+from utils.learning.train_part_naf import train3
 
 if os.getcwd() + '/utils/common/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/common/')
@@ -80,6 +80,7 @@ def parse():
 
     # max_train_resolution 인자를 추가합니다.
     parser.add_argument("--max_train_resolution",nargs="+",default=None,type=int,help="If given, training slices will be center cropped to this size if larger along any dimension.")
+    
     args = parser.parse_args()
     return args
 
@@ -110,8 +111,15 @@ if __name__ == '__main__':
     args.exp_dir.mkdir(parents=True, exist_ok=True)
     args.val_dir.mkdir(parents=True, exist_ok=True)
 
-    train1(args)
-    print("train1끝, train2 start!")
-    train2(args)
-    print("train2끝, train3 start!")
+    # NAFNet 관련
+    args.image_channel_naf = 3
+    args.width_naf = 32
+    args.middle_blk_num_naf = 1
+    args.enc_blk_nums_naf = [1,1,1,28]
+    args.dec_blk_nums_naf = [1,1,1,1]
+    args.num_epochs_naf = 20
+    args.lr_naf = 1e-3
+
+    print("train3 시작!")
     train3(args)
+    print("train3 종료!")
