@@ -229,30 +229,32 @@ def train_epoch3(args, epoch, model, data_loader, optimizer, loss_type, augmento
                     kspace_pred = model.cascades[args.pre_cascade+i*2+j](kspace_pred, kspace, mask, sens_map)
 
 
-        with autocast():
-            # 해당 cascade를 통해 k-space output 생성
+        # 학습할 부분에 대해서만 그라디언트 계산 및 업데이트
+        with torch.set_grad_enabled(True):
+            with autocast():
+                # 해당 cascade를 통해 k-space output 생성
 
-            sens_map = model.sens_nets[args.additional_cascade_block](kspace, mask)
-            kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*2-2](kspace_pred, kspace, mask, sens_map)
-            kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*2-1](kspace_pred, kspace, mask, sens_map)
-            kspace_pred = torch.chunk(kspace_pred, model.num_adj_slices, dim=1)[model.center_slice]
+                sens_map = model.sens_nets[args.additional_cascade_block](kspace, mask)
+                kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*2-2](kspace_pred, kspace, mask, sens_map)
+                kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*2-1](kspace_pred, kspace, mask, sens_map)
+                kspace_pred = torch.chunk(kspace_pred, model.num_adj_slices, dim=1)[model.center_slice]
 
-            result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
+                result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
 
-            # 이미지 크기 조정
-            height = result.shape[-2]
-            width = result.shape[-1]
-            result = result[..., (height - 384) // 2 : 384 + (height - 384) // 2, (width - 384) // 2 : 384 + (width - 384) // 2]
-            # print(f"Result tensor shape: {result.shape}")
-            # print(f"Target tensor shape: {target.shape}")
+                # 이미지 크기 조정
+                height = result.shape[-2]
+                width = result.shape[-1]
+                result = result[..., (height - 384) // 2 : 384 + (height - 384) // 2, (width - 384) // 2 : 384 + (width - 384) // 2]
+                # print(f"Result tensor shape: {result.shape}")
+                # print(f"Target tensor shape: {target.shape}")
 
-            # 손실 계산 및 누적
-            loss = loss_type(result, target, maximum)
-            loss = loss / args.gradient_accumulation_steps # Scale the loss for gradient accumulation
-            
-        # Mixed Precision에서 Gradient Accumulation
-        scaler.scale(loss).backward()
-        # scaler.scale(loss).backward(retain_graph=True)
+                # 손실 계산 및 누적
+                loss = loss_type(result, target, maximum)
+                loss = loss / args.gradient_accumulation_steps # Scale the loss for gradient accumulation
+                
+            # Mixed Precision에서 Gradient Accumulation
+            scaler.scale(loss).backward()
+            # scaler.scale(loss).backward(retain_graph=True)
 
 
         if (iter + 1) % args.gradient_accumulation_steps == 0:
@@ -876,11 +878,15 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
             for param in model2.sens_nets[i].parameters():
                 param.requires_grad = False  # 동결
 
-        # 학습할 파라미터만 포함한 optimizer 생성
-        optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
+        # 특정 파라미터들만 업데이트하도록 optimizer를 설정
+        params_to_update = []
+        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 2].parameters())
+        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 1].parameters())
+        params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
 
+        optimizer = torch.optim.RAdam(params_to_update, args.lr)
         # model2.pt 로드 (optimizer 포함)
-        start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, optimizers, model_filename=model_pt_filename)
+        start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, optimizer, model_filename=model_pt_filename)
         clear_gpu_memory()
 
     else:
@@ -948,8 +954,17 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
                     param.requires_grad = False  # 동결
             model2.sens_nets[args.additional_cascade_block] = copy.deepcopy(model1.sens_nets[args.additional_cascade_block-1])
 
-            # 학습할 파라미터만 포함한 optimizer 생성
-            optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
+            # # 학습할 파라미터만 포함한 optimizer 생성
+            # optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
+
+            # 특정 파라미터들만 업데이트하도록 optimizer를 설정
+            params_to_update = []
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 2].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 1].parameters())
+            params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
+
+            optimizer = torch.optim.RAdam(params_to_update, args.lr)
+
 
         else : 
             # PromptMR 모델을 사용하도록 변경
@@ -992,8 +1007,16 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
                     param.requires_grad = False  # 동결
             model2.sens_nets[args.additional_cascade_block] = copy.deepcopy(model1.sens_net)
 
-            # 학습할 파라미터만 포함한 optimizer 생성
-            optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
+            # # 학습할 파라미터만 포함한 optimizer 생성
+            # optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
+
+            # 특정 파라미터들만 업데이트하도록 optimizer를 설정
+            params_to_update = []
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 2].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 1].parameters())
+            params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
+
+            optimizer = torch.optim.RAdam(params_to_update, args.lr)
 
         # model1의 가중치를 복사한 후 GPU VRAM에서 model1 삭제하여 메모리 확보
         del model1
