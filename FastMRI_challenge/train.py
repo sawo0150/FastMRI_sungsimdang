@@ -6,7 +6,7 @@ from pathlib import Path
 
 if os.getcwd() + '/utils/model/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/model/')
-from utils.learning.train_part import train1, train2
+from utils.learning.train_part import train1, train2, train3
 
 if os.getcwd() + '/utils/common/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/common/')
@@ -102,6 +102,8 @@ if __name__ == '__main__':
     args.second_cascade = 7
     args.second_epoch_list = [126, 250, 400, 500, 600]
 
+    args.additional_cascade_block = 0
+
     args.exp_dir = '../result' / args.net_name / 'checkpoints'
     args.val_dir = '../result' / args.net_name / 'reconstructions_val'
     args.main_dir = '../result' / args.net_name / __file__
@@ -113,3 +115,5 @@ if __name__ == '__main__':
     train1(args)
     print("train1끝, train2 start!")
     train2(args)
+    print("train2끝, train3 start!")
+    train3(args)

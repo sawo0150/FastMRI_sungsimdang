@@ -653,3 +653,147 @@ class PromptMR(nn.Module):
         height = result.shape[-2]
         width = result.shape[-1]
         return result[..., (height - 384) // 2 : 384 + (height - 384) // 2, (width - 384) // 2 : 384 + (width - 384) // 2]
+    
+
+class PromptMR2(nn.Module):
+    """
+    An prompt-learning based unrolled model for multi-coil MR reconstruction, 
+    see https://arxiv.org/abs/2309.13839.
+
+    """
+
+    def __init__(
+        self,
+        num_cascades: int = 12,
+        additional_cascade_block: int = 0,
+        num_adj_slices: int = 5,
+        n_feat0: int = 48,
+        feature_dim: List[int] = [72, 96, 120],
+        prompt_dim: List[int] = [24, 48, 72],
+        sens_n_feat0: int =24,
+        sens_feature_dim: List[int] = [36, 48, 60],
+        sens_prompt_dim: List[int] = [12, 24, 36],
+        len_prompt: List[int] = [5, 5, 5],
+        prompt_size: List[int] = [64, 32, 16],
+        n_enc_cab: List[int] = [2, 3, 3],
+        n_dec_cab: List[int] = [2, 2, 3],
+        n_skip_cab: List[int] = [1, 1, 1],
+        n_bottleneck_cab: int = 3,
+        no_use_ca: bool = False,
+        sens_len_prompt: Optional[List[int]] = None,
+        sens_prompt_size: Optional[List[int]] = None,
+        sens_n_enc_cab: Optional[List[int]] = None,
+        sens_n_dec_cab: Optional[List[int]] = None,
+        sens_n_skip_cab: Optional[List[int]] = None,
+        sens_n_bottleneck_cab: Optional[List[int]] = None,
+        sens_no_use_ca: Optional[bool] = None,
+        mask_center: bool = True,
+        use_checkpoint: bool = False,
+        low_mem: bool = False,
+    ):
+        """
+        Args:
+            num_cascades: Number of cascades (i.e., layers) for variational network.
+            num_adj_slices: Number of adjacent slices.
+            n_feat0: Number of top-level feature channels for PromptUnet.
+            feature_dim: feature dim for each level in PromptUnet.
+            prompt_dim: prompt dim for each level in PromptUnet.
+            sens_n_feat0: Number of top-level feature channels for sense map
+                estimation PromptUnet in PromptMR.
+            sens_feature_dim: feature dim for each level in PromptUnet for
+                sensitivity map estimation (SME) network.
+            sens_prompt_dim: prompt dim for each level in PromptUnet in
+                sensitivity map estimation (SME) network.
+            len_prompt: number of prompt component in each level.
+            prompt_size: prompt spatial size.
+            n_enc_cab: number of CABs (channel attention Blocks) in DownBlock.
+            n_dec_cab: number of CABs (channel attention Blocks) in UpBlock.
+            n_skip_cab: number of CABs (channel attention Blocks) in SkipBlock.
+            n_bottleneck_cab: number of CABs (channel attention Blocks) in
+                BottleneckBlock.
+            no_use_ca: not using channel attention.
+            mask_center: Whether to mask center of k-space for sensitivity map
+                calculation.
+            use_checkpoint: Whether to use checkpointing to trade compute for GPU memory.
+            low_mem: Whether to compute sensitivity map coil by coil to save GPU memory.
+        """
+        super().__init__()
+
+        self.num_cascades = num_cascades
+        self.additional_cascade_block = additional_cascade_block
+        
+        assert num_adj_slices % 2 == 1, "num_adj_slices must be odd"
+        self.num_adj_slices = num_adj_slices
+        self.center_slice = num_adj_slices//2
+
+        # Sensitivity network with multiple blocks
+        self.sens_nets = nn.ModuleList([
+            SensitivityModel(
+                num_adj_slices=num_adj_slices,
+                n_feat0=sens_n_feat0,
+                feature_dim= sens_feature_dim,
+                prompt_dim = sens_prompt_dim,
+                len_prompt = sens_len_prompt if sens_len_prompt is not None else len_prompt,
+                prompt_size = sens_prompt_size if sens_prompt_size is not None else prompt_size,
+                n_enc_cab = sens_n_enc_cab if sens_n_enc_cab is not None else n_enc_cab,
+                n_dec_cab = sens_n_dec_cab if sens_n_dec_cab is not None else n_dec_cab,
+                n_skip_cab = sens_n_skip_cab if sens_n_skip_cab is not None else n_skip_cab,
+                n_bottleneck_cab = sens_n_bottleneck_cab if sens_n_bottleneck_cab is not None else n_bottleneck_cab,
+                no_use_ca = sens_no_use_ca if sens_no_use_ca is not None else no_use_ca,
+                mask_center=mask_center,
+                low_mem=low_mem,
+
+            ) for _ in range(additional_cascade_block+1)
+        ])
+        self.cascades = nn.ModuleList(
+            [PromptMRBlock(NormPromptUnet(2*num_adj_slices, 2*num_adj_slices, n_feat0, feature_dim, prompt_dim, len_prompt, prompt_size, n_enc_cab, n_dec_cab, n_skip_cab, n_bottleneck_cab, no_use_ca), num_adj_slices) for _ in range(num_cascades+additional_cascade_block*2)]
+        )
+        self.use_checkpoint = use_checkpoint
+
+    def forward(
+        self,
+        masked_kspace: torch.Tensor,
+        mask: torch.Tensor,
+        num_low_frequencies: Optional[int] = None,
+    ) -> torch.Tensor:
+
+        # if self.use_checkpoint and self.training:
+        if self.use_checkpoint:
+             
+            sens_maps = torch.utils.checkpoint.checkpoint(
+                self.sens_nets[0], masked_kspace, mask, num_low_frequencies, use_reentrant=False)
+        else:
+            sens_maps = self.sens_nets[0](masked_kspace, mask, num_low_frequencies)
+        kspace_pred = masked_kspace.clone()
+
+        for i in range(self.num_cascades):
+            if self.use_checkpoint:
+            # if self.use_checkpoint and self.training:
+                kspace_pred = torch.utils.checkpoint.checkpoint(
+                    self.cascades[i], kspace_pred, masked_kspace, mask, sens_maps, use_reentrant=False)
+            else:
+                kspace_pred = self.cascades[i](kspace_pred, masked_kspace, mask, sens_maps)
+
+        # 추가 cascade 블록들 수행
+        for j in range(self.additional_cascade_block):
+            if self.use_checkpoint:
+                sens_maps = torch.utils.checkpoint.checkpoint(
+                    self.sens_nets[j + 1], masked_kspace, mask, num_low_frequencies, use_reentrant=False)
+            else:
+                sens_maps = self.sens_nets[j + 1](masked_kspace, mask, num_low_frequencies)
+
+            for i in range(2):  # 각 추가 cascade 블록에서 2개의 cascades를 수행
+                cascade_index = self.num_cascades + j * 2 + i
+                if self.use_checkpoint:
+                    kspace_pred = torch.utils.checkpoint.checkpoint(
+                        self.cascades[cascade_index], kspace_pred, masked_kspace, mask, sens_maps, use_reentrant=False)
+                else:
+                    kspace_pred = self.cascades[cascade_index](kspace_pred, masked_kspace, mask, sens_maps)
+
+
+        kspace_pred = torch.chunk(kspace_pred, self.num_adj_slices, dim=1)[
+            self.center_slice]
+        result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
+        height = result.shape[-2]
+        width = result.shape[-1]
+        return result[..., (height - 384) // 2 : 384 + (height - 384) // 2, (width - 384) // 2 : 384 + (width - 384) // 2]
