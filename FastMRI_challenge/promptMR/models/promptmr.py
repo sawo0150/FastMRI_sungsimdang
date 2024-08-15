@@ -746,7 +746,7 @@ class PromptMR2(nn.Module):
             ) for _ in range(additional_cascade_block+1)
         ])
         self.cascades = nn.ModuleList(
-            [PromptMRBlock(NormPromptUnet(2*num_adj_slices, 2*num_adj_slices, n_feat0, feature_dim, prompt_dim, len_prompt, prompt_size, n_enc_cab, n_dec_cab, n_skip_cab, n_bottleneck_cab, no_use_ca), num_adj_slices) for _ in range(num_cascades+additional_cascade_block*2)]
+            [PromptMRBlock(NormPromptUnet(2*num_adj_slices, 2*num_adj_slices, n_feat0, feature_dim, prompt_dim, len_prompt, prompt_size, n_enc_cab, n_dec_cab, n_skip_cab, n_bottleneck_cab, no_use_ca), num_adj_slices) for _ in range(num_cascades+additional_cascade_block*6)]
         )
         self.use_checkpoint = use_checkpoint
 
@@ -782,8 +782,8 @@ class PromptMR2(nn.Module):
             else:
                 sens_maps = self.sens_nets[j + 1](masked_kspace, mask, num_low_frequencies)
 
-            for i in range(2):  # 각 추가 cascade 블록에서 2개의 cascades를 수행
-                cascade_index = self.num_cascades + j * 2 + i
+            for i in range(6):  # 각 추가 cascade 블록에서 6개의 cascades를 수행
+                cascade_index = self.num_cascades + j * 6 + i
                 if self.use_checkpoint:
                     kspace_pred = torch.utils.checkpoint.checkpoint(
                         self.cascades[cascade_index], kspace_pred, masked_kspace, mask, sens_maps, use_reentrant=False)

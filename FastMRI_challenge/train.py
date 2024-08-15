@@ -102,7 +102,7 @@ if __name__ == '__main__':
     args.second_cascade = 7
     args.second_epoch_list = [126, 250, 400, 500, 600]
 
-    args.additional_cascade_block = 0
+    args.additional_cascade_block = 1
 
     args.exp_dir = '../result' / args.net_name / 'checkpoints'
     args.val_dir = '../result' / args.net_name / 'reconstructions_val'

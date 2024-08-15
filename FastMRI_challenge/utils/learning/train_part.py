@@ -220,26 +220,35 @@ def train_epoch3(args, epoch, model, data_loader, optimizer, loss_type, augmento
             # Sensitivity map은 한 번만 계산
             sens_map = model.sens_nets[0](kspace, mask)
 
-            for i in range(args.pre_cascade):  # 첫 6개의 cascade
+            for i in range(args.pre_cascade):  # 첫 7개의 cascade
                 kspace_pred = model.cascades[i](kspace_pred, kspace, mask, sens_map)
 
             for i in range(args.additional_cascade_block-1):
+                print("addblock>1")
                 sens_map = model.sens_nets[i+1](kspace, mask)
-                for j in range(2):
-                    kspace_pred = model.cascades[args.pre_cascade+i*2+j](kspace_pred, kspace, mask, sens_map)
+                for j in range(6):
+                    kspace_pred = model.cascades[args.pre_cascade+i*6+j](kspace_pred, kspace, mask, sens_map)
 
 
         # 학습할 부분에 대해서만 그라디언트 계산 및 업데이트
         with torch.set_grad_enabled(True):
             with autocast():
                 # 해당 cascade를 통해 k-space output 생성
-                # sens_map = checkpointed_forward(model.sens_nets[args.additional_cascade_block], kspace, mask)
-                # kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*2-2], kspace_pred, kspace, mask, sens_map)
-                # kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*2-1], kspace_pred, kspace, mask, sens_map)
+                sens_map = checkpointed_forward(model.sens_nets[args.additional_cascade_block], kspace, mask)
+                kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-6], kspace_pred, kspace, mask, sens_map)
+                kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-5], kspace_pred, kspace, mask, sens_map)
+                kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-4], kspace_pred, kspace, mask, sens_map)
+                kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-3], kspace_pred, kspace, mask, sens_map)
+                kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-2], kspace_pred, kspace, mask, sens_map)
+                kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-1], kspace_pred, kspace, mask, sens_map)
 
-                sens_map = model.sens_nets[args.additional_cascade_block](kspace, mask)
-                kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*2-2](kspace_pred, kspace, mask, sens_map)
-                kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*2-1](kspace_pred, kspace, mask, sens_map)
+                # sens_map = model.sens_nets[args.additional_cascade_block](kspace, mask)
+                # kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*6-6](kspace_pred, kspace, mask, sens_map)
+                # kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*6-5](kspace_pred, kspace, mask, sens_map)
+                # kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*6-4](kspace_pred, kspace, mask, sens_map)
+                # kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*6-3](kspace_pred, kspace, mask, sens_map)
+                # kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*6-2](kspace_pred, kspace, mask, sens_map)
+                # kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*6-1](kspace_pred, kspace, mask, sens_map)
                 kspace_pred = torch.chunk(kspace_pred, model.num_adj_slices, dim=1)[model.center_slice]
 
                 result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
@@ -874,7 +883,7 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
         print(args.second_cascade)
 
         # 앞쪽 cascade block들을 동결
-        for i in range(args.pre_cascade + args.additional_cascade_block * 2 - 2):
+        for i in range(args.pre_cascade + args.additional_cascade_block * 6 - 6):
             for param in model2.cascades[i].parameters():
                 param.requires_grad = False  # 동결
 
@@ -885,8 +894,12 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
 
         # 특정 파라미터들만 업데이트하도록 optimizer를 설정
         params_to_update = []
-        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 2].parameters())
-        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 1].parameters())
+        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 6].parameters())
+        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 5].parameters())
+        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 4].parameters())
+        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 3].parameters())
+        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 2].parameters())
+        params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 1].parameters())
         params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
 
         optimizer = torch.optim.RAdam(params_to_update, args.lr)
@@ -966,8 +979,12 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
 
             # 특정 파라미터들만 업데이트하도록 optimizer를 설정
             params_to_update = []
-            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 2].parameters())
-            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 1].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 6].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 5].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 4].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 3].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 2].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 1].parameters())
             params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
 
             optimizer = torch.optim.RAdam(params_to_update, args.lr)
@@ -1000,7 +1017,7 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
             optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model1.cascades[i].parameters()), args.lr) for i in range(args.pre_cascade-1, args.pre_cascade)]
             print(pre_model_pt_filename, "load_checkpoint2")
             start_epoch, best_val_loss = load_checkpoint2(args.exp_dir, model1, optimizers=optimizers, model_filename=pre_model_pt_filename)
-
+            print("start_Epoch : ",start_epoch)
             # model1의 첫 6개의 cascade block을 복사하고 동결
             for i in range(args.pre_cascade + args.additional_cascade_block * 2 - 2):
                 model2.cascades[i] = copy.deepcopy(model1.cascades[i])
@@ -1019,8 +1036,12 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
 
             # 특정 파라미터들만 업데이트하도록 optimizer를 설정
             params_to_update = []
-            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 2].parameters())
-            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 2 - 1].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 6].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 5].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 4].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 3].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 2].parameters())
+            params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 1].parameters())
             params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
 
             optimizer = torch.optim.RAdam(params_to_update, args.lr)
@@ -1054,12 +1075,12 @@ def train3(args):
             current_cascade_index = i
             args.num_epochs = second_epoch
             args.additional_cascade_block = i
-            args.second_cascade = args.pre_cascade + args.additional_cascade_block*2
+            args.second_cascade = args.pre_cascade + args.additional_cascade_block*6
             break
     print("cascade개수 : ",args.additional_cascade_block, args.cascade, args.pre_cascade, args.second_cascade, current_cascade_index)
 
     # Cascade 개수를 반영한 모델 파일 이름 설정
-    pre_model_pt_filename = f'model{args.second_cascade-2:02d}.pt'
+    pre_model_pt_filename = f'model{args.second_cascade-6:02d}.pt'
     model_pt_filename = f'model{args.second_cascade:02d}.pt'
     best_model_filename = f'best_model{args.second_cascade:02d}.pt'
 
@@ -1109,7 +1130,7 @@ def train3(args):
             args.num_epochs = second_epoch
             args.num_epochs = args.second_epoch_list[current_cascade_index]
             args.additional_cascade_block = current_cascade_index
-            args.second_cascade = args.pre_cascade + args.additional_cascade_block*2
+            args.second_cascade = args.pre_cascade + args.additional_cascade_block*6
 
             model_pt_filename = f'model{args.second_cascade:02d}.pt'
             pre_model_pt_filename = f'model{args.second_cascade-2:02d}.pt'
