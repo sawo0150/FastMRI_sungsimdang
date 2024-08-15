@@ -80,7 +80,14 @@ def parse():
 
     # max_train_resolution 인자를 추가합니다.
     parser.add_argument("--max_train_resolution",nargs="+",default=None,type=int,help="If given, training slices will be center cropped to this size if larger along any dimension.")
-    
+    #NAFNet 관련
+    parser.add_argument('--img_channel_naf', type=int, default=3, help='Number of image channels for NAFNet')
+    parser.add_argument('--width_naf', type=int, default=32, help='Width for NAFNet')
+    parser.add_argument('--middle_blk_num_naf', type=int, default=1, help='Number of middle blocks for NAFNet')
+    parser.add_argument('--enc_blk_nums_naf', type=list, default=[1,1,1,28], help='Encoder block numbers for NAFNet')
+    parser.add_argument('--dec_blk_nums_naf', type=list, default=[1,1,1,1], help='Decoder block numbers for NAFNet')
+    parser.add_argument('--num_epochs_naf', type=int, default=20, help='Number of epochs for NAFNet training')
+    parser.add_argument('--lr_naf', type=float, default=1e-3, help='Learning rate for NAFNet')
     args = parser.parse_args()
     return args
 
@@ -112,13 +119,13 @@ if __name__ == '__main__':
     args.val_dir.mkdir(parents=True, exist_ok=True)
 
     # NAFNet 관련
-    args.image_channel_naf = 3
-    args.width_naf = 32
-    args.middle_blk_num_naf = 1
-    args.enc_blk_nums_naf = [1,1,1,28]
-    args.dec_blk_nums_naf = [1,1,1,1]
-    args.num_epochs_naf = 20
-    args.lr_naf = 1e-3
+#     args.image_channel_naf = 3
+#     args.width_naf = 32
+#     args.middle_blk_num_naf = 1
+#     args.enc_blk_nums_naf = [1,1,1,28]
+#     args.dec_blk_nums_naf = [1,1,1,1]
+#     args.num_epochs_naf = 20
+#     args.lr_naf = 1e-3
 
     print("train3 시작!")
     train3(args)

@@ -3,7 +3,7 @@ from pathlib import Path
 import os, sys
 if os.getcwd() + '/utils/model/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/model/')
-
+from NAFNet.basicsr.models.archs.NAFNet_arch import NAFNet
 from utils.learning.test_part_naf import forward
 import time
     

@@ -17,7 +17,7 @@ from utils.common.loss_function import SSIMLoss, MS_SSIM_L1_LOSS, MS_SSIM_L1_LOS
 # from utils.model.varnet import VarNet
 # from promptMR.pl_modules.promptmr_module import PromptMrModule  # PromptMR 모델을 가져옵니다.
 from promptMR.models.promptmr import PromptMR
-from NAFNet.basicsr.models.archs.NAFNet
+from NAFNet.basicsr.models.archs.NAFNet_arch import NAFNet
 
 # DataAugmentor와 관련된 import 추가
 from MRAugment.mraugment.data_augment import DataAugmentor

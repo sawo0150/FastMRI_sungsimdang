@@ -12,8 +12,8 @@ from torch.utils.data._utils.collate import default_collate  # default_collate �
 class SliceData(Dataset):
     def __init__(self, root, transform, input_key, target_key, augmentor=None, mask_augmentor=None, forward=False):
         self.transform = transform
-        #self.input_key = input_key
-        #self.target_key = target_key
+        self.input_key = input_key
+        self.target_key = target_key
         #self.augmentor = augmentor  # augmentor를 인자로 받음
         #self.mask_augmentor = mask_augmentor  # mask_augmentor를 인자로 받음
         self.forward = forward
