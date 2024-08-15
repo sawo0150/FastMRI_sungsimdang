@@ -10,7 +10,7 @@ from pathlib import Path
 import copy
 
 from collections import defaultdict
-from utils.data.load_data import create_data_loaders, create_data_loaders2
+from utils.data.load_data_naf import create_data_loaders_naf
 from utils.common.utils import save_reconstructions, ssim_loss
 from utils.common.loss_function import SSIMLoss, MS_SSIM_L1_LOSS, MS_SSIM_L1_LOSS2
 
@@ -52,19 +52,22 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
     optimizer.zero_grad()
 
     for iter, data in enumerate(data_loader):
-        mask, kspace, target, maximum, _, _ = data
+        koutput, grappa, iinput, target, maximum, _, _ = data
         # print("train_epoch 함수 : ", kspace.shape)
         # print("mask 함수 : ", mask.shape)
         
-        mask = mask.cuda(non_blocking=True)
-        kspace = kspace.cuda(non_blocking=True).requires_grad_(True)  # kspace는 grad 필요
+        koutput = koutput.cuda(non_blocking=True).requires_grad_(True)  # kspace는 grad 필요
+        grappa = grappa.cuda(non_blocking=True).requires_grad_(True)
+        iinput = iinput.cuda(non_blocking=True).requires_grad_(True)
         target = target.cuda(non_blocking=True).requires_grad_(False)  # target은 grad 필요 없음
         maximum = maximum.cuda(non_blocking=True).requires_grad_(False)  # maximum도 마찬가지
 
+        input_combined = torch.cat((koutput, grappa, iinput), dim=1) # 3개의 채널을 가진 이미지로 만듦
+
         with autocast():  # Mixed Precision 사용
-            # Apply gradient checkpointing
+            # Apply gradient checkpointings
             # output = checkpointed_forward(model, kspace, mask)
-            output = model(kspace, mask)
+            output = model(input_combined)
 
             loss = loss_type(output, target, maximum)
             loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
@@ -81,7 +84,7 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
 
         if iter % args.report_interval == 0:
             print(
-                f'Epoch = [{epoch:3d}/{args.num_epochs:3d}] '
+                f'Epoch = [{epoch:3d}/{args.num_epochs_naf:3d}] '
                 f'Iter = [{iter:4d}/{len(data_loader):4d}] '
                 f'Loss = {loss.item() * args.gradient_accumulation_steps:.4g} '
                 f'Time = {time.perf_counter() - start_iter:.4f}s',
@@ -98,13 +101,16 @@ def validate(args, model, data_loader):
 
     with torch.no_grad():
         for iter, data in enumerate(data_loader):
-            mask, kspace, target, _, fnames, slices = data
-            kspace = kspace.cuda(non_blocking=True)
-            mask = mask.cuda(non_blocking=True)
+            koutput, grappa, iinput, target, _, fnames, slices = data
+            koutput = koutput.cuda(non_blocking=True)
+            grappa = grappa.cuda(non_blocking=True)
+            iinput = iinput.cuda(non_blocking=True)
+
+            input_combined = torch.cat((koutput, grappa, iinput), dim=1)
 
             # Apply gradient checkpointing
             # output = checkpointed_forward(model, kspace, mask)
-            output = model(kspace, mask)
+            output = model(input_combined)
 
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
@@ -122,8 +128,7 @@ def validate(args, model, data_loader):
     num_subjects = len(reconstructions)
     return metric_loss, num_subjects, reconstructions, targets, None, time.perf_counter() - start
 
-
-def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_best, model_filename='model06.pt'):
+def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_best, model_filename='model_naf.pt'):
     torch.save(
         {
             'epoch': epoch,
@@ -137,22 +142,6 @@ def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_bes
     )
     if is_new_best:
         shutil.copyfile(exp_dir / model_filename, exp_dir / f'best_{model_filename}')
-
-def save_model2(args, exp_dir, epoch, model, optimizers, best_val_loss, is_new_best, model_filename='model.pt'):
-    torch.save(
-        {
-            'epoch': epoch,
-            'args': args,
-            'model': model.state_dict(),
-            'optimizers': [opt.state_dict() for opt in optimizers],
-            'best_val_loss': best_val_loss,
-            'exp_dir': exp_dir
-        },
-        f=exp_dir / model_filename
-    )
-    if is_new_best:
-        shutil.copyfile(exp_dir / model_filename, exp_dir / f'best_{model_filename}')
-
 
 def download_model(url, fname):
     response = requests.get(url, timeout=10, stream=True)
@@ -171,7 +160,7 @@ def download_model(url, fname):
             progress_bar.update(len(chunk))
             fh.write(chunk)
 
-def load_checkpoint(exp_dir, model, optimizer, model_filename='model06.pt'):
+def load_checkpoint(exp_dir, model, optimizer, model_filename='model_naf.pt'):
     checkpoint_path = exp_dir / model_filename
     if checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path)
@@ -187,6 +176,7 @@ def load_checkpoint(exp_dir, model, optimizer, model_filename='model06.pt'):
     return start_epoch, best_val_loss
 
 def train3(args):
+    clear_gpu_memory()
     device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
     torch.cuda.set_device(device)
     print('Current cuda device: ', torch.cuda.current_device())
@@ -204,34 +194,22 @@ def train3(args):
     # loss_type = SSIMLoss().to(device=device)
     loss_type = MS_SSIM_L1_LOSS().to(device=device)  # 새로 만든 MS_SSIM_L1_LOSS 사용
     # optimizer = torch.optim.Adam(model.parameters(), args.lr)
-    optimizer = torch.optim.RAdam(model.parameters(), args.lr)  # RAdam optimizer 사용
+    optimizer = torch.optim.RAdam(model.parameters(), args.lr_naf)  # RAdam optimizer 사용
 
-
-    # Check if a checkpoint exists, and load it if it does
-    start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model, optimizer)
-
-
-    # DataAugmentor 초기화
-    current_epoch_fn = lambda: epoch
-    augmentor = DataAugmentor(args, current_epoch_fn)
-
-    # MaskAugmentor 초기화
-    mask_augmentor = MaskAugmentor(current_epoch_fn, total_epochs=args.num_epochs)
-
-    val_loader = create_data_loaders(
+    val_loader = create_data_loaders_naf(
         data_path=args.data_path_val,
         args=args
     )
-    augmentor_arg = augmentor if augmentor.aug_on else None
-    mask_augmentor_arg = mask_augmentor if args.mask_aug_on else None
-    print(augmentor_arg)
-    print(mask_augmentor_arg)
-    train_loader = create_data_loaders(
+    
+    # Check if a checkpoint exists, and load it if it does
+    start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model, optimizer)
+
+    train_loader = create_data_loaders_naf(
         data_path=args.data_path_train,
         args=args,
         shuffle=True,
-        augmentor=augmentor_arg,      # augmentor가 None이면 전달되지 않음
-        mask_augmentor=mask_augmentor_arg  # mask_augmentor가 None이면 전달되지 않음
+        augmentor=None,      # augmentor가 None이면 전달되지 않음
+        mask_augmentor=None  # mask_augmentor가 None이면 전달되지 않음
     )
 
     val_loss_log_file = os.path.join(args.val_loss_dir, "val_loss_log3.npy")
@@ -242,17 +220,10 @@ def train3(args):
     else:
         val_loss_log = np.empty((0, 2))
     print(val_loss_log)
-    for epoch in range(start_epoch, args.num_epochs):
+    for epoch in range(start_epoch, args.num_epochs_naf):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
-        p1 = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산
-        print(f"MRAugmentation probability at epoch {epoch}: {p1}")
-        randomacc = mask_augmentor.get_acc()  # 현재 epoch에 기반한 증강 확률을 계산
-        p2 = mask_augmentor.maskAugProbability  # 현재 epoch에 기반한 증강 확률을 계산
-        print(f"mask_Augmentation probability at epoch {epoch}: {p2}")
-        print(randomacc)
-        
 
-        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, augmentor, mask_augmentor)
+        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, None, None)
         val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, val_loader)
         
         val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
@@ -274,7 +245,7 @@ def train3(args):
         print("complete")
         save_model(args, args.exp_dir, epoch + 1, model, optimizer, best_val_loss, is_new_best)
         print(
-            f'Epoch = [{epoch:4d}/{args.num_epochs:4d}] TrainLoss = {train_loss:.4g} '
+            f'Epoch = [{epoch:4d}/{args.num_epochs_naf:4d}] TrainLoss = {train_loss:.4g} '
             f'ValLoss = {val_loss:.4g} TrainTime = {train_time:.4f}s ValTime = {val_time:.4f}s',
         )
 

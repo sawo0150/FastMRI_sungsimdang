@@ -75,14 +75,46 @@ class SliceData(Dataset):
         mask, kspace, target, maximum, fname, slice = self.transform(mask, input, target, attrs, kspace_fname.name, dataslice)
         grappa = to_tensor(grappa)
         iinput = to_tensor(iinput)
+        # mask, kspace를 model에 넣은 결과를 알아야 한다
         
+        model_pt_filename = f'model{args.second_cascade:02d}.pt'
+        model = PromptMR(
+            num_cascades=args.second_cascade,
+            num_adj_slices=args.num_adj_slices,
+            n_feat0=args.n_feat0,
+            feature_dim = args.feature_dim,
+            prompt_dim = args.prompt_dim,
+            sens_n_feat0=args.sens_n_feat0,
+            sens_feature_dim = args.sens_feature_dim,
+            sens_prompt_dim = args.sens_prompt_dim,
+            len_prompt = args.len_prompt,
+            prompt_size = args.prompt_size,
+            n_enc_cab = args.n_enc_cab,
+            n_dec_cab = args.n_dec_cab,
+            n_skip_cab = args.n_skip_cab,
+            n_bottleneck_cab = args.n_bottleneck_cab,
+            no_use_ca = args.no_use_ca,
+            use_checkpoint=args.use_checkpoint,
+            low_mem = args.low_mem
+        )
+        model.to(device=device)
+        checkpoint = torch.load(args.exp_dir / model_pt_filename, map_location='cpu')
+        # checkpoint = torch.load(args.exp_dir / best_model_filename, map_location='cpu')
+        
+        model.load_state_dict(checkpoint['model'])
+        
+        model.eval()
+        with torch.no_grad():
+            kspace = kspace.cuda(non_blocking=True)
+            mask = mask.cuda(non_blocking=True)
+            koutput = model(kspace, mask)
         # # print("transform 후",mask.shape, kspace.shape)
 
         # # Augmentor가 있을 경우 kspace와 target에 적용
         # if self.augmentor:
         #     input, target = self.augmentor(kspace, target, target_size=target.shape[-2:])
         
-        return mask, kspace, grappa, iinput, target, maximum, fname, slice
+        return koutput, grappa, iinput, target, maximum, fname, slice
     
 def create_data_loaders_naf(data_path, args, shuffle=False, isforward=False, augmentor=None, mask_augmentor=None):
     if isforward == False:
