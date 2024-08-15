@@ -59,6 +59,9 @@ if __name__ == '__main__':
     args.second_cascade = 10
 
     args.num_workers = 8
+
+    args.pre_cascade = 7
+    args.additional_cascade_block = 1
     
     public_acc, private_acc = None, None
 

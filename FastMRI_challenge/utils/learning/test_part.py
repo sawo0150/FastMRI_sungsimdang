@@ -5,7 +5,7 @@ from collections import defaultdict
 from utils.common.utils import save_reconstructions
 from utils.data.load_data import create_data_loaders
 # from utils.model.varnet import VarNet
-from promptMR.models.promptmr import PromptMR
+from promptMR.models.promptmr import PromptMR2
 
 import os
 
@@ -52,26 +52,12 @@ def forward(args):
         start_epoch = int(val_loss_log[-1, 0]) + 1
     else:
         start_epoch = 0
-    current_cascade_index = 0
-    for i, second_epoch in enumerate(args.second_epoch_list):
-        if start_epoch < second_epoch:
-            current_cascade_index = i
-            # args.num_epochs = second_epoch
-            args.pre_cascade = args.cascade + i
-            args.second_cascade = args.cascade + i+ 1
-            break
-    print(start_epoch)
-    if start_epoch<args.num_epochs:
-        args.second_cascade = args.cascade
-    print("cascade개수 : ", args.cascade, args.pre_cascade, args.second_cascade, current_cascade_index)
+        
 
-    # Cascade 개수를 반영한 모델 파일 이름 설정
-    pre_model_pt_filename = f'model{args.pre_cascade:02d}.pt'
-    model_pt_filename = f'model{args.second_cascade:02d}.pt'
-    best_model_filename = f'best_model{args.second_cascade:02d}.pt'
-
-    model = PromptMR(
-        num_cascades=args.second_cascade,
+    model = PromptMR2(
+        num_cascades=args.pre_cascade,
+        additional_cascade_block = args.additional_cascade_block,
+        # additional_cascade_block = 3,
         num_adj_slices=args.num_adj_slices,
         n_feat0=args.n_feat0,
         feature_dim = args.feature_dim,
@@ -91,9 +77,9 @@ def forward(args):
     )
     model.to(device=device)
 
-    print(model_pt_filename)
-    checkpoint = torch.load(args.exp_dir / model_pt_filename, map_location='cpu')
-    # checkpoint = torch.load(args.exp_dir / best_model_filename, map_location='cpu')
+    print(args.exp_dir / "model13.pt")
+    checkpoint = torch.load(args.exp_dir / "model13.pt", map_location='cpu')
+    # checkpoint = torch.load(args.exp_dir / "best_model13.pt", map_location='cpu')
     print(checkpoint['epoch'], checkpoint['best_val_loss'].item())
     model.load_state_dict(checkpoint['model'])
     
