@@ -233,6 +233,9 @@ def train_epoch3(args, epoch, model, data_loader, optimizer, loss_type, augmento
         with torch.set_grad_enabled(True):
             with autocast():
                 # 해당 cascade를 통해 k-space output 생성
+                # sens_map = checkpointed_forward(model.sens_nets[args.additional_cascade_block], kspace, mask)
+                # kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*2-2], kspace_pred, kspace, mask, sens_map)
+                # kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*2-1], kspace_pred, kspace, mask, sens_map)
 
                 sens_map = model.sens_nets[args.additional_cascade_block](kspace, mask)
                 kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*2-2](kspace_pred, kspace, mask, sens_map)
@@ -846,8 +849,9 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
         # model2.pt가 존재하는 경우
         print(f"Loading model2 from {model_path}")
         # PromptMR 모델을 사용하도록 변경
+        # num_cascades=args.pre_cascade, 이게 맞음!!! 계속 additional_cascade_block이걸로 하나씩 올리는 것임!
         model2 = PromptMR2(
-            num_cascades=args.second_cascade,
+            num_cascades=args.pre_cascade,
             additional_cascade_block = args.additional_cascade_block,
             num_adj_slices=args.num_adj_slices,
             n_feat0=args.n_feat0,
@@ -867,6 +871,7 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
             low_mem = args.low_mem
         )
         model2.to(device=device)
+        print(args.second_cascade)
 
         # 앞쪽 cascade block들을 동결
         for i in range(args.pre_cascade + args.additional_cascade_block * 2 - 2):
@@ -886,6 +891,7 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
 
         optimizer = torch.optim.RAdam(params_to_update, args.lr)
         # model2.pt 로드 (optimizer 포함)
+        print(model_pt_filename, args.second_cascade)
         start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, optimizer, model_filename=model_pt_filename)
         clear_gpu_memory()
 
@@ -912,6 +918,7 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
             low_mem=args.low_mem
         )
         model2.to(device=device)
+        print(args.second_cascade)
 
         if args.additional_cascade_block >1:
             # 새 모델을 정의하고 이전 모델에서 가중치 불러오기
@@ -1113,6 +1120,7 @@ def train3(args):
 
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
         print("cascade개수 : ", args.cascade, args.pre_cascade, args.second_cascade, current_cascade_index)
+        print(len(model2.cascades))
         p1 = augmentor.schedule_p()  # 현재 epoch에 기반한 증강 확률을 계산
         print(f"MRAugmentation probability at epoch {epoch}: {p1}")
         randomacc = mask_augmentor.get_acc()  # 현재 epoch에 기반한 증강 확률을 계산
@@ -1121,6 +1129,7 @@ def train3(args):
         print(randomacc)
         
 
+        # train_loss, train_time = train_epoch(args, epoch, model2, train_loader, optimizer, loss_type, augmentor, mask_augmentor)
         train_loss, train_time = train_epoch3(args, epoch, model2, train_loader, optimizer, loss_type, augmentor, mask_augmentor)
         val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model2, val_loader)
         
