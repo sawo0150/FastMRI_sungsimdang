@@ -1,6 +1,18 @@
-fastmri_sungsim V2 코드
+# fastmri_sungsim V2.2_Naf 코드
 
-smplayer 모델에 있는 모든 요소 넣어봄 (일단 debugging 완료)
+NafNet 만들어서 넣었음
+2024/08/15 <- 일단 코드 완성
+2024/08/16 <- 계속 디버깅 중
+## 실행 방법
+```
+pip install lmdb
+sh train.sh
+sh train_naf.sh
+sh reconstruc_naf.sh
+sh leaderboard.sh
+```
+
+위 순서대로 실행하면 된다
 
 넣은 요소들
 1. gradient checkpointing / gradient accumulation
