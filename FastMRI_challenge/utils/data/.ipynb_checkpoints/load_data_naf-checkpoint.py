@@ -1,5 +1,6 @@
 import h5py
 import random
+import torch
 from utils.data.transforms import DataTransform
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
@@ -8,9 +9,21 @@ import numpy as np
 from torch.utils.data import Sampler, BatchSampler
 from collections import defaultdict
 from torch.utils.data._utils.collate import default_collate  # default_collate 함수 임포트
+from promptMR.models.promptmr import PromptMR
+
+def to_tensor(data):
+    """
+    Convert numpy array to PyTorch tensor. For complex arrays, the real and imaginary parts
+    are stacked along the last dimension.
+    Args:
+        data (np.array): Input numpy array
+    Returns:
+        torch.Tensor: PyTorch version of data
+    """
+    return torch.from_numpy(data)
 
 class SliceData(Dataset):
-    def __init__(self, root, transform, input_key, target_key, augmentor=None, mask_augmentor=None, forward=False):
+    def __init__(self, root, transform, input_key, target_key, augmentor=None, mask_augmentor=None, forward=False, model=None):
         self.transform = transform
         self.input_key = input_key
         self.target_key = target_key
@@ -19,7 +32,8 @@ class SliceData(Dataset):
         self.forward = forward
         self.image_examples = []
         self.kspace_examples = []
-
+        self.model = model
+        
         
         image_files = list(Path(root / "image").iterdir())
         for fname in sorted(image_files):
@@ -71,43 +85,18 @@ class SliceData(Dataset):
         # if self.mask_augmentor:
         #     mask = self.mask_augmentor.augment(mask)
         
-        # # print("transform 전",mask.shape, input.shape)
-        mask, kspace, target, maximum, fname, slice = self.transform(mask, input, target, attrs, kspace_fname.name, dataslice)
+        # print("transform 전",mask.shape, input.shape)
+        mask, kspace, target, maximum, fname, slice = self.transform(mask, kinput, target, attrs, kspace_fname.name, dataslice)
         grappa = to_tensor(grappa)
         iinput = to_tensor(iinput)
         # mask, kspace를 model에 넣은 결과를 알아야 한다
         
-        model_pt_filename = f'model{args.second_cascade:02d}.pt'
-        model = PromptMR(
-            num_cascades=args.second_cascade,
-            num_adj_slices=args.num_adj_slices,
-            n_feat0=args.n_feat0,
-            feature_dim = args.feature_dim,
-            prompt_dim = args.prompt_dim,
-            sens_n_feat0=args.sens_n_feat0,
-            sens_feature_dim = args.sens_feature_dim,
-            sens_prompt_dim = args.sens_prompt_dim,
-            len_prompt = args.len_prompt,
-            prompt_size = args.prompt_size,
-            n_enc_cab = args.n_enc_cab,
-            n_dec_cab = args.n_dec_cab,
-            n_skip_cab = args.n_skip_cab,
-            n_bottleneck_cab = args.n_bottleneck_cab,
-            no_use_ca = args.no_use_ca,
-            use_checkpoint=args.use_checkpoint,
-            low_mem = args.low_mem
-        )
-        model.to(device=device)
-        checkpoint = torch.load(args.exp_dir / model_pt_filename, map_location='cpu')
-        # checkpoint = torch.load(args.exp_dir / best_model_filename, map_location='cpu')
         
-        model.load_state_dict(checkpoint['model'])
-        
-        model.eval()
+        self.model.eval()
         with torch.no_grad():
             kspace = kspace.cuda(non_blocking=True)
             mask = mask.cuda(non_blocking=True)
-            koutput = model(kspace, mask)
+            koutput = self.model(kspace, mask)
         # # print("transform 후",mask.shape, kspace.shape)
 
         # # Augmentor가 있을 경우 kspace와 target에 적용
@@ -124,6 +113,37 @@ def create_data_loaders_naf(data_path, args, shuffle=False, isforward=False, aug
         max_key_ = -1
         target_key_ = -1
     
+    device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
+    torch.cuda.set_device(device)
+    
+    model_pt_filename = f'model{args.second_cascade:02d}.pt'
+    model = PromptMR(
+        num_cascades=args.second_cascade,
+        num_adj_slices=args.num_adj_slices,
+        n_feat0=args.n_feat0,
+        feature_dim = args.feature_dim,
+        prompt_dim = args.prompt_dim,
+        sens_n_feat0=args.sens_n_feat0,
+        sens_feature_dim = args.sens_feature_dim,
+        sens_prompt_dim = args.sens_prompt_dim,
+        len_prompt = args.len_prompt,
+        prompt_size = args.prompt_size,
+        n_enc_cab = args.n_enc_cab,
+        n_dec_cab = args.n_dec_cab,
+        n_skip_cab = args.n_skip_cab,
+        n_bottleneck_cab = args.n_bottleneck_cab,
+        no_use_ca = args.no_use_ca,
+        use_checkpoint=args.use_checkpoint,
+        low_mem = args.low_mem
+    )
+    
+    model.to(device=device)
+    checkpoint = torch.load(args.exp_dir / model_pt_filename, map_location='cpu')
+    # checkpoint = torch.load(args.exp_dir / best_model_filename, map_location='cpu')
+
+    model.load_state_dict(checkpoint['model'])
+        
+    
     data_storage = SliceData(
         root=data_path,
         transform=DataTransform(isforward, max_key_),
@@ -131,7 +151,8 @@ def create_data_loaders_naf(data_path, args, shuffle=False, isforward=False, aug
         target_key=target_key_,
         augmentor=augmentor,  # augmentor를 전달
         mask_augmentor=mask_augmentor,  # mask_augmentor를 전달
-        forward=isforward
+        forward=isforward,
+        model=model
     )
 
     data_loader = DataLoader(
