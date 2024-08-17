@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 class MaskAugmentor:
-    def __init__(self, current_epoch_fn, initial_acc_values=[4, 5, 8], later_acc_range=(2, 12), step=0.01, total_epochs=100):
+    def __init__(self, current_epoch_fn, initial_acc_values=[4, 5, 8], later_acc_range=(3, 13), step=0.01, total_epochs=100):
         """
         Args:
             current_epoch_fn: 현재 epoch를 반환하는 함수.
@@ -49,7 +49,7 @@ class MaskAugmentor:
             # print("epoch< 50")
             progress = 0.7
             if epoch > 150:
-                self.later_acc_range = (2,11)
+                self.later_acc_range = (2,12)
         self.maskAugProbability = progress
         initial_weight = max(0, 1 - progress)
         later_weight = min(1, progress)
