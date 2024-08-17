@@ -6,38 +6,41 @@ from promptMR.models.promptmr import PromptMR, PromptMR2
 def load_checkpoint_for_optimizer(filepath, model, optimizer):
     checkpoint = torch.load(filepath)
     model.load_state_dict(checkpoint['model'])
-    optimizer.load_state_dict(checkpoint['optimizers'][0])
+    optimizer.load_state_dict(checkpoint['optimizer'])
     start_epoch = checkpoint['epoch']
     best_val_loss = checkpoint['best_val_loss']
-    return optimizer, start_epoch, best_val_loss
+    print(f"Checkpoint loaded. Resuming from epoch {start_epoch}, with best validation loss {best_val_loss:.4g}.")
+    return start_epoch, best_val_loss
 
 def copy_optimizer_excluding_sens_nets(model2, optimizer, args, lr):
     sens_nets_params = list(model2.sens_nets[args.additional_cascade_block].parameters())
+    sens_nets_params_ids = [id(p) for p in sens_nets_params]  # ID로 비교
+
     params_to_update = []
 
     for param_group in optimizer.param_groups:
         params = param_group['params']
-        filtered_params = [p for p in params if p not in sens_nets_params]
+        filtered_params = [p for p in params if id(p) not in sens_nets_params_ids]  # ID를 사용한 비교
         if filtered_params:
             params_to_update.append({'params': filtered_params, 'lr': param_group.get('lr', lr)})
 
     optimizer2 = torch.optim.RAdam(params_to_update, lr)
-    optimizer2.load_state_dict(optimizer.state_dict())
 
-    new_state_dict = optimizer2.state_dict()
-    for i, param_group in enumerate(new_state_dict['param_groups']):
-        new_params = [p for p in param_group['params'] if p not in sens_nets_params]
-        new_state_dict['param_groups'][i]['params'] = new_params
-
-    optimizer2.load_state_dict(new_state_dict)
+    # 여기서는 optimizer2의 상태를 optimizer와 동기화하지 않습니다.
+    # 대신, 필요한 파라미터를 포함한 새로운 옵티마이저를 반환합니다.
     return optimizer2
 
-def save_checkpoint(filepath, model, optimizer, start_epoch, best_val_loss):
-    torch.save({
-        'epoch': start_epoch,
-        'model': model.state_dict(),
-        'optimizers': [optimizer.state_dict()],
-        'best_val_loss': best_val_loss,
+
+
+def save_checkpoint(exp_dir, filepath, model, optimizer, start_epoch, best_val_loss):
+    torch.save(
+        {
+            'epoch': start_epoch,
+            'args': args,
+            'model': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'best_val_loss': best_val_loss,
+            'exp_dir': exp_dir
     }, filepath)
 
 # 설정
@@ -49,7 +52,7 @@ def parse():
     parser.add_argument('-e', '--num-epochs', type=int, default=1, help='Number of epochs')
     parser.add_argument('-l', '--lr', type=float, default=1e-3, help='Learning rate')
     parser.add_argument('-r', '--report-interval', type=int, default=500, help='Report interval')
-    parser.add_argument('-n', '--net-name', type=Path, default='test_varnet', help='Name of network')
+    parser.add_argument('-n', '--net-name', type=Path, default='sungsimV2_promptMR', help='Name of network')
     parser.add_argument('-t', '--data-path-train', type=Path, default='/Data/train/', help='Directory of train data')
     parser.add_argument('-v', '--data-path-val', type=Path, default='/Data/val/', help='Directory of validation data')
     
@@ -161,15 +164,36 @@ model2 = PromptMR2(
 model2.to(device=device)
 
 # 체크포인트 로드
-checkpoint_path = Path("/home/swpants05/fastMRISungsimdang_ws/root_sungsimV2.4/FastMRI_sungsimdang/result/sungsimV2_promptMR/checkpoints/best_model13.pt")
-optimizer = torch.optim.RAdam(model2.parameters(), lr=args.lr)
-optimizer, start_epoch, best_val_loss = load_checkpoint_for_optimizer(checkpoint_path, model2, optimizer)
+checkpoint_path = Path("/home/swpants05/fastMRISungsimdang_ws/root_sungsimV2.4/FastMRI_sungsimdang/result/sungsimV2_promptMR/checkpoints/model13.pt")
+          
+# 특정 파라미터들만 업데이트하도록 optimizer를 설정
+params_to_update = []
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 6].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 5].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 4].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 3].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 2].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 1].parameters())
+params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
 
-# optimizer2 생성
-optimizer2 = copy_optimizer_excluding_sens_nets(model2, optimizer, args, lr=args.lr)
+optimizer = torch.optim.RAdam(params_to_update, args.lr)
+
+start_epoch, best_val_loss = load_checkpoint_for_optimizer(checkpoint_path, model2, optimizer)
+
+# optimizer2 생성# 특정 파라미터들만 업데이트하도록 optimizer를 설정
+params_to_update = []
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 6].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 5].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 4].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 3].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 2].parameters())
+params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 1].parameters())
+
+optimizer2 = torch.optim.RAdam(params_to_update, args.lr)
+# optimizer2 = copy_optimizer_excluding_sens_nets(model2, optimizer, args, lr=args.lr)
 
 # 새로운 체크포인트 저장
-new_checkpoint_path = checkpoint_path.parent / 'new_best_model13.pt'
-save_checkpoint(new_checkpoint_path, model2, optimizer2, start_epoch, best_val_loss)
+new_checkpoint_path = checkpoint_path.parent / 'new_model13.pt'
+save_checkpoint(args.exp_dir, new_checkpoint_path, model2, optimizer2, start_epoch, best_val_loss)
 
 print(f"New checkpoint saved at {new_checkpoint_path}")
