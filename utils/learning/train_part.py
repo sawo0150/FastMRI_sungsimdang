@@ -419,6 +419,21 @@ def train1(args):
     torch.cuda.set_device(device)
     print('Current cuda device: ', torch.cuda.current_device())
 
+    val_loss_log_file = os.path.join(args.val_loss_dir, "val_loss_log.npy")
+    if os.path.exists(val_loss_log_file):
+        val_loss_log = np.load(val_loss_log_file)
+    else:
+        val_loss_log = np.empty((0, 2))
+
+    if val_loss_log.size > 0:
+        start_epoch = int(val_loss_log[-1, 0]) + 1
+    else:
+        start_epoch = 0
+    current_cascade_index = 0
+    print(start_epoch, args.num_epochs)
+    if start_epoch > args.num_epochs:
+        return
+    
     # PromptMR 모델을 사용하도록 변경
     model = PromptMR(
         num_cascades=args.cascade,
