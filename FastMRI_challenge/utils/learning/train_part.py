@@ -1148,6 +1148,7 @@ def train3(args):
         p2 = mask_augmentor.maskAugProbability  # 현재 epoch에 기반한 증강 확률을 계산
         print(f"mask_Augmentation probability at epoch {epoch}: {p2}")
         print(randomacc)
+        print("random acc range : ",mask_augmentor.later_acc_range)
         
 
         # train_loss, train_time = train_epoch(args, epoch, model2, train_loader, optimizer, loss_type, augmentor, mask_augmentor)
