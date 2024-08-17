@@ -228,13 +228,14 @@ def train_epoch3(args, epoch, model, data_loader, optimizer, loss_type, augmento
                 sens_map = model.sens_nets[i+1](kspace, mask)
                 for j in range(6):
                     kspace_pred = model.cascades[args.pre_cascade+i*6+j](kspace_pred, kspace, mask, sens_map)
+            
+            sens_map = model.sens_nets[args.additional_cascade_block](kspace, mask)
 
 
         # 학습할 부분에 대해서만 그라디언트 계산 및 업데이트
         with torch.set_grad_enabled(True):
             with autocast():
                 # 해당 cascade를 통해 k-space output 생성
-                sens_map = checkpointed_forward(model.sens_nets[args.additional_cascade_block], kspace, mask)
                 kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-6], kspace_pred, kspace, mask, sens_map)
                 kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-5], kspace_pred, kspace, mask, sens_map)
                 kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-4], kspace_pred, kspace, mask, sens_map)
@@ -900,7 +901,6 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
         params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 3].parameters())
         params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 2].parameters())
         params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 1].parameters())
-        params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
 
         optimizer = torch.optim.RAdam(params_to_update, args.lr)
         # model2.pt 로드 (optimizer 포함)
@@ -985,7 +985,6 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 3].parameters())
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 2].parameters())
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 1].parameters())
-            params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
 
             optimizer = torch.optim.RAdam(params_to_update, args.lr)
 
@@ -1042,7 +1041,6 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 3].parameters())
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 2].parameters())
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 1].parameters())
-            params_to_update += list(model2.sens_nets[args.additional_cascade_block].parameters())
 
             optimizer = torch.optim.RAdam(params_to_update, args.lr)
 
