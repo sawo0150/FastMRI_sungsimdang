@@ -243,7 +243,6 @@ def train_epoch3(args, epoch, model, data_loader, optimizer, loss_type, augmento
                 kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-2], kspace_pred, kspace, mask, sens_map)
                 kspace_pred = checkpointed_forward(model.cascades[args.pre_cascade+args.additional_cascade_block*6-1], kspace_pred, kspace, mask, sens_map)
 
-                # sens_map = model.sens_nets[args.additional_cascade_block](kspace, mask)
                 # kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*6-6](kspace_pred, kspace, mask, sens_map)
                 # kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*6-5](kspace_pred, kspace, mask, sens_map)
                 # kspace_pred = model.cascades[args.pre_cascade+args.additional_cascade_block*6-4](kspace_pred, kspace, mask, sens_map)
