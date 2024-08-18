@@ -44,7 +44,7 @@ def checkpointed_forward(module, *inputs):
     inputs = [inp.float().requires_grad_(True) if torch.is_tensor(inp) and inp.is_floating_point() else inp for inp in inputs]
     return checkpoint.checkpoint(module, *inputs)
 
-def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor, mask_augmentor):
+def train_epoch(args, epoch, model, model_origin, data_loader, optimizer, loss_type, augmentor, mask_augmentor):
     model.train()
     start_epoch = start_iter = time.perf_counter()
     len_loader = len(data_loader)
@@ -52,34 +52,36 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
     optimizer.zero_grad()
 
     for iter, data in enumerate(data_loader):
-        koutput, grappa, iinput, target, maximum, _, _ = data
+        mask, kspace, grappa, iinput, target, maximum, _, _ = data
         # print("train_epoch 함수 : ", kspace.shape)
         # print("mask 함수 : ", mask.shape)
         
-        koutput = koutput.cuda(non_blocking=True).requires_grad_(True)  # kspace는 grad 필요
+        mask = mask.cuda(non_blocking=True)
+        kspace = koutput.cuda(non_blocking=True).requires_grad_(True)  # kspace는 grad 필요
         grappa = grappa.cuda(non_blocking=True).requires_grad_(True)
         iinput = iinput.cuda(non_blocking=True).requires_grad_(True)
         target = target.cuda(non_blocking=True).requires_grad_(False)  # target은 grad 필요 없음
         maximum = maximum.cuda(non_blocking=True).requires_grad_(False)  # maximum도 마찬가지
 
-        input_combined = torch.cat((koutput, grappa, iinput), dim=1) # 3개의 채널을 가진 이미지로 만듦
+        with torch.no_grad():
+            koutput = model_origin(kspace, mask)
+            input_combined = torch.cat((koutput, grappa, iinput), dim=1) # 3개의 채널을 가진 이미지로 만듦
 
-        with autocast():  # Mixed Precision 사용
-            # Apply gradient checkpointings
-            # output = checkpointed_forward(model, kspace, mask)
-            output = model(input_combined)
+        with torch.set_grad_enabled(True):
+            with autocast():
+                output = model(input_combined)
 
-            loss = loss_type(output, target, maximum)
-            loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
+                loss = loss_type(output, target, maximum)
+                loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
 
-        scaler.scale(loss).backward()
+            scaler.scale(loss).backward()
 
 
         if (iter + 1) % args.gradient_accumulation_steps == 0:
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
-        
+
         total_loss += loss.item() * args.gradient_accumulation_steps
 
         if iter % args.report_interval == 0:
@@ -90,10 +92,11 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, augmentor
                 f'Time = {time.perf_counter() - start_iter:.4f}s',
             )
             start_iter = time.perf_counter()
+            
     total_loss = total_loss / len_loader
     return total_loss, time.perf_counter() - start_epoch
 
-def validate(args, model, data_loader):
+def validate(args, model, model_origin, data_loader):
     model.eval()
     reconstructions = defaultdict(dict)
     targets = defaultdict(dict)
@@ -101,11 +104,13 @@ def validate(args, model, data_loader):
 
     with torch.no_grad():
         for iter, data in enumerate(data_loader):
-            koutput, grappa, iinput, target, _, fnames, slices = data
-            koutput = koutput.cuda(non_blocking=True)
+            mask, kspace, grappa, iinput, target, _, fnames, slices = data
+            mask = mask.cuda(non_blocking=True)
+            kspace = kspace.cuda(non_blocking=True)
             grappa = grappa.cuda(non_blocking=True)
             iinput = iinput.cuda(non_blocking=True)
-
+            
+            koutput = model_origin(kspace, mask)
             input_combined = torch.cat((koutput, grappa, iinput), dim=1)
 
             # Apply gradient checkpointing
@@ -189,7 +194,32 @@ def train_naf(args):
         enc_blk_nums=args.enc_blk_nums_naf,
         dec_blk_nums=args.dec_blk_nums_naf
     )
-    model.to(device=device)
+    model.to(device=device
+    
+    pre_model_pt_filename = f'model13.pt'
+    model_pt_filename = f'model_naf.pt'
+    best_model_filename = f'best_model_naf.pt'
+    model_origin = PromptMR2(                                   ######### <- 수정
+            num_cascades=args.pre_cascade,
+            additional_cascade_block=args.additional_cascade_block,
+            num_adj_slices=args.num_adj_slices,
+            n_feat0=args.n_feat0,
+            feature_dim=args.feature_dim,
+            prompt_dim=args.prompt_dim,
+            sens_n_feat0=args.sens_n_feat0,
+            sens_feature_dim=args.sens_feature_dim,
+            sens_prompt_dim=args.sens_prompt_dim,
+            len_prompt=args.len_prompt,
+            prompt_size=args.prompt_size,
+            n_enc_cab=args.n_enc_cab,
+            n_dec_cab=args.n_dec_cab,
+            n_skip_cab=args.n_skip_cab,
+            n_bottleneck_cab=args.n_bottleneck_cab,
+            no_use_ca=args.no_use_ca,
+            use_checkpoint=args.use_checkpoint,
+            low_mem=args.low_mem
+    )
+    
 
     # loss_type = SSIMLoss().to(device=device)
     loss_type = MS_SSIM_L1_LOSS().to(device=device)  # 새로 만든 MS_SSIM_L1_LOSS 사용
@@ -220,11 +250,12 @@ def train_naf(args):
     else:
         val_loss_log = np.empty((0, 2))
     print(val_loss_log)
+
     for epoch in range(start_epoch, args.num_epochs_naf):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
 
-        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, None, None)
-        val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, val_loader)
+        train_loss, train_time = train_epoch(args, epoch, model, model_origin, train_loader, optimizer, loss_type, None, None)
+        val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, model_origin, val_loader)
         
         val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
         file_path = os.path.join(args.val_loss_dir, "val_loss_log")
