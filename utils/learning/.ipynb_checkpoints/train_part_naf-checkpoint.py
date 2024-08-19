@@ -194,11 +194,21 @@ def train_naf(args):
         enc_blk_nums=args.enc_blk_nums_naf,
         dec_blk_nums=args.dec_blk_nums_naf
     )
-    model.to(device=device
+    model.to(device=device)
+    
+    model_pt_filename = f'model_naf.pt'
+    checkpoint_path = args.exp_dir / model_pt_filename
+    if checkpoint_path.exists():
+        checkpoint = torch.load(checkpoint_path)
+        model_origin.load_state_dict(checkpoint['model'])
+    else:
+        print('Cannot find model_naf_pt, start from scratch')
+        
+    print(model_origin_pt_filename, args.second_cascade)
+    clear_gpu_memory()
     
     model_origin_pt_filename = f'model13.pt'
-    model_pt_filename = f'model_naf.pt'
-    best_model_filename = f'best_model_naf.pt'
+    
     model_origin = PromptMR2(
             num_cascades=args.pre_cascade,
             additional_cascade_block = args.additional_cascade_block,
@@ -219,9 +229,16 @@ def train_naf(args):
             use_checkpoint=args.use_checkpoint,
             low_mem = args.low_mem
     )
+    
     model_origin.to(device=device)
+    checkpoint_path = args.exp_dir / model_origin_pt_filename
+    if checkpoint_path.exists():
+        checkpoint = torch.load(checkpoint_path)
+        model_origin.load_state_dict(checkpoint['model'])
+    else:
+        print('Cannot find model_origin_pt, error will occur')
+        
     print(model_origin_pt_filename, args.second_cascade)
-    start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model_origin, optimizer, model_filename=model_pt_filename)
     clear_gpu_memory()
     
 
@@ -291,21 +308,6 @@ def train_naf(args):
             print(
                 f'ForwardTime = {time.perf_counter() - start:.4f}s',
             )
-
-
-        # # 모델 평가를 위한 외부 스크립트 실행 전에 GPU 메모리 정리
-        # torch.cuda.empty_cache()
-
-        # # **모델 평가를 위한 외부 스크립트 실행**
-        # reconstruct_cmd = f"python3 reconstruct.py -b 2 -n '{args.net_name}' -p '/home/swpants05/fastmri-2024-data/leaderboard'"
-        # os.system(reconstruct_cmd)
-
-        # eval_cmd = f"python3 leaderboard_eval.py -lp '/home/swpants05/fastmri-2024-data/leaderboard' -yp '/home/swpants05/fastMRISungsimdang_ws/root_sungsimV1/result/{args.net_name}/reconstructions_leaderboard'"
-        # os.system(eval_cmd)
-
-        # print(f"Reconstruction and evaluation done for epoch {epoch}.")
-
-
 
 def clear_gpu_memory():
     torch.cuda.empty_cache()
