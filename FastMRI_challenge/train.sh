@@ -4,5 +4,5 @@
   -l 0.001 \
   -r 50 \
   -n 'sungsimV1_final_Varnet' \
-  -t '/home/swpants05/fastmri-2024-data/train' \
-  -v '/home/swpants05/fastmri-2024-data/val'
+  -t '/home/Data/train/' \
+  -v '/home/Data/val/'
