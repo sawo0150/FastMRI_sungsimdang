@@ -92,10 +92,6 @@ class SliceData(Dataset):
         
         # # print("transform 후",mask.shape, kspace.shape)
 
-        # # Augmentor가 있을 경우 kspace와 target에 적용
-        # if self.augmentor:
-        #     input, target = self.augmentor(kspace, target, target_size=target.shape[-2:])
-        
         return mask, kspace, grappa, iinput, target, maximum, fname, slice
     
 def create_data_loaders_naf(data_path, args, shuffle=False, isforward=False, augmentor=None, mask_augmentor=None):

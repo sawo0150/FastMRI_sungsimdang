@@ -16,8 +16,8 @@ Simple Baselines for Image Restoration
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from NafNet.basicsr.models.archs.arch_util import LayerNorm2d
-from NafNet.basicsr.models.archs.local_arch import Local_Base
+from NAFNet.basicsr.models.archs.arch_util import LayerNorm2d
+from NAFNet.basicsr.models.archs.local_arch import Local_Base
 
 class SimpleGate(nn.Module):
     def forward(self, x):
@@ -87,8 +87,8 @@ class NAFNet(nn.Module):
 
         self.intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
                               bias=True)
-        self.ending = nn.Conv2d(in_channels=width, out_channels=img_channel, kernel_size=3, padding=1, stride=1, groups=1,
-                              bias=True)
+        self.ending = nn.Conv2d(in_channels=width, out_channels=1, kernel_size=3, padding=1, stride=1, groups=1,
+                              bias=True) # out_channels를 1로 수정
 
         self.encoders = nn.ModuleList()
         self.decoders = nn.ModuleList()
@@ -150,7 +150,7 @@ class NAFNet(nn.Module):
             x = decoder(x)
 
         x = self.ending(x)
-        x = x + inp
+        x = x + inp # 최종 출력 = 기존 + residual
 
         return x[:, :, :H, :W]
 

@@ -196,29 +196,33 @@ def train_naf(args):
     )
     model.to(device=device
     
-    pre_model_pt_filename = f'model13.pt'
+    model_origin_pt_filename = f'model13.pt'
     model_pt_filename = f'model_naf.pt'
     best_model_filename = f'best_model_naf.pt'
-    model_origin = PromptMR2(                                   ######### <- 수정
+    model_origin = PromptMR2(
             num_cascades=args.pre_cascade,
-            additional_cascade_block=args.additional_cascade_block,
+            additional_cascade_block = args.additional_cascade_block,
             num_adj_slices=args.num_adj_slices,
             n_feat0=args.n_feat0,
-            feature_dim=args.feature_dim,
-            prompt_dim=args.prompt_dim,
+            feature_dim = args.feature_dim,
+            prompt_dim = args.prompt_dim,
             sens_n_feat0=args.sens_n_feat0,
-            sens_feature_dim=args.sens_feature_dim,
-            sens_prompt_dim=args.sens_prompt_dim,
-            len_prompt=args.len_prompt,
-            prompt_size=args.prompt_size,
-            n_enc_cab=args.n_enc_cab,
-            n_dec_cab=args.n_dec_cab,
-            n_skip_cab=args.n_skip_cab,
-            n_bottleneck_cab=args.n_bottleneck_cab,
-            no_use_ca=args.no_use_ca,
+            sens_feature_dim = args.sens_feature_dim,
+            sens_prompt_dim = args.sens_prompt_dim,
+            len_prompt = args.len_prompt,
+            prompt_size = args.prompt_size,
+            n_enc_cab = args.n_enc_cab,
+            n_dec_cab = args.n_dec_cab,
+            n_skip_cab = args.n_skip_cab,
+            n_bottleneck_cab = args.n_bottleneck_cab,
+            no_use_ca = args.no_use_ca,
             use_checkpoint=args.use_checkpoint,
-            low_mem=args.low_mem
+            low_mem = args.low_mem
     )
+    model_origin.to(device=device)
+    print(model_origin_pt_filename, args.second_cascade)
+    start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model_origin, optimizer, model_filename=model_pt_filename)
+    clear_gpu_memory()
     
 
     # loss_type = SSIMLoss().to(device=device)
