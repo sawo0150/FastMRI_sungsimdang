@@ -18,9 +18,16 @@ def test(args, model, model_naf, data_loader):
         for (mask, kspace, grappa, iinput, _, _, fnames, slices) in data_loader:
             kspace = kspace.cuda(non_blocking=True)
             mask = mask.cuda(non_blocking=True)
+            grappa = grappa.cuda(non_blocking=True)
+            iinput = iinput.cuda(non_blocking=True)
             koutput = model(kspace, mask)
-            input_combined = torch.cat((koutput, grappa, iinput), dim=1)
-            ouput = model_naf(inut_combined)
+            
+            koutput = koutput.unsquueze(1)
+            grappa = grappa.unsqueeze(1)
+            iinput = iinput.unsqueeze(1)
+            input_combined = torch.cat([koutput, grappa, iinput], dim=1)
+            output = model_naf(inut_combined)
+            output = output.squeeze(1)
 
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()

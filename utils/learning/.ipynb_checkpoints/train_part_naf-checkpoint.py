@@ -57,7 +57,7 @@ def train_epoch(args, epoch, model, model_origin, data_loader, optimizer, loss_t
         # print("mask 함수 : ", mask.shape)
         
         mask = mask.cuda(non_blocking=True)
-        kspace = koutput.cuda(non_blocking=True).requires_grad_(True)  # kspace는 grad 필요
+        kspace = kspace.cuda(non_blocking=True).requires_grad_(True)  # kspace는 grad 필요
         grappa = grappa.cuda(non_blocking=True).requires_grad_(True)
         iinput = iinput.cuda(non_blocking=True).requires_grad_(True)
         target = target.cuda(non_blocking=True).requires_grad_(False)  # target은 grad 필요 없음
@@ -65,12 +65,20 @@ def train_epoch(args, epoch, model, model_origin, data_loader, optimizer, loss_t
 
         with torch.no_grad():
             koutput = model_origin(kspace, mask)
-            input_combined = torch.cat((koutput, grappa, iinput), dim=1) # 3개의 채널을 가진 이미지로 만듦
+            koutput = koutput.unsqueeze(1)
+            grappa = grappa.unsqueeze(1)
+            iinput = iinput.unsqueeze(1)
+#             print(koutput.shape)
+#             print(grappa.shape)
+#             print(iinput.shape)
+            input_combined = torch.cat([koutput, grappa, iinput], dim=1) # 3개의 채널을 가진 이미지로 만듦
+            # print('input_combined size', input_combined.shape)
 
         with torch.set_grad_enabled(True):
             with autocast():
                 output = model(input_combined)
-
+                # print('output', output.shape)
+                output = output.squeeze(1)
                 loss = loss_type(output, target, maximum)
                 loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
 
@@ -204,7 +212,7 @@ def train_naf(args):
     else:
         print('Cannot find model_naf_pt, start from scratch')
         
-    print(model_origin_pt_filename, args.second_cascade)
+    print(model_pt_filename)
     clear_gpu_memory()
     
     model_origin_pt_filename = f'model13.pt'

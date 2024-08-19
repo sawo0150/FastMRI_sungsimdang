@@ -150,8 +150,9 @@ class NAFNet(nn.Module):
             x = decoder(x)
 
         x = self.ending(x)
-        x = x + inp # 최종 출력 = 기존 + residual
-
+        # print('ending shape', x.shape)
+        x = x + inp[:,0,:,:] # 최종 출력 = 기존 + residual
+        # print('last shape', x.shape)
         return x[:, :, :H, :W]
 
     def check_image_size(self, x):
@@ -190,7 +191,7 @@ if __name__ == '__main__':
                       enc_blk_nums=enc_blks, dec_blk_nums=dec_blks)
 
 
-    inp_shape = (3, 256, 256)
+    inp_shape = (3, 324, 324)
 
     from ptflops import get_model_complexity_info
 
