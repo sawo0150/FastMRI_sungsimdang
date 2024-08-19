@@ -87,7 +87,7 @@ def cascadeOutput(model, masked_kspace, mask, cascade_num):
     kspace_pred = masked_kspace.clone()
 
     for i in range(cascade_num):
-        kspace_pred = model.cascade[i](kspace_pred, masked_kspace, mask, sens_maps)
+        kspace_pred = model.cascades[i](kspace_pred, masked_kspace, mask, sens_maps)
     result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
     height = result.shape[-2]
     width = result.shape[-1]
