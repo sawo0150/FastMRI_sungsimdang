@@ -16,7 +16,7 @@ from utils.common.loss_function import SSIMLoss, MS_SSIM_L1_LOSS, MS_SSIM_L1_LOS
 
 # from utils.model.varnet import VarNet
 # from promptMR.pl_modules.promptmr_module import PromptMrModule  # PromptMR 모델을 가져옵니다.
-from promptMR.models.promptmr import PromptMR
+from promptMR.models.promptmr import PromptMR2
 from NAFNet.basicsr.models.archs.NAFNet_arch import NAFNet
 
 # DataAugmentor와 관련된 import 추가
@@ -196,7 +196,7 @@ def train_naf(args):
     )
     model.to(device=device)
     
-    model_pt_filename = f'model_naf.pt'
+    model_pt_filename = 'model_naf.pt'
     checkpoint_path = args.exp_dir / model_pt_filename
     if checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path)
