@@ -20,7 +20,7 @@ import requests
 from tqdm import tqdm
 from pathlib import Path
 import copy
-import fastmri
+import utils.model.fastmri
 
 if os.getcwd() + '/utils/model/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/model/')
