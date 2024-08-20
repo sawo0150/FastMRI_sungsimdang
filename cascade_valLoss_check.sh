@@ -3,6 +3,6 @@
   -e 50 \
   -l 0.001 \
   -r 50 \
-  -n 'sungsimV1_final_Varnet' \
+  -n 'sungsimV2_promptMR' \
   -t '/home/Data/train/' \
   -v '/home/Data/val/'
