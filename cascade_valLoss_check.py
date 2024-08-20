@@ -8,7 +8,7 @@ from collections import defaultdict
 from utils.data.load_data import create_data_loaders
 from utils.common.utils import save_reconstructions, ssim_loss
 from utils.common.loss_function import SSIMLoss, MS_SSIM_L1_LOSS
-from utils.model.varnet import VarNet
+# from utils.model.varnet import VarNet
 from promptMR.models.promptmr import PromptMR, PromptMR2
 
 import shutil
