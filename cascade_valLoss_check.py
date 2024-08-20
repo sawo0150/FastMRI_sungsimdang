@@ -103,7 +103,7 @@ def parse():
     return args
 
 def cascadeOutput(args, model, masked_kspace, mask, cascade_num):
-    sens_maps = model.sens_net[0](masked_kspace, mask)
+    sens_maps = model.sens_nets[0](masked_kspace, mask)
     kspace_pred = masked_kspace.clone()
 
     if cascade_num<=args.pre_cascade:
