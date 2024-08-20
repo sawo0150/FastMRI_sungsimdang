@@ -241,7 +241,7 @@ def valLossChecking(args):
 
         print("complete")
         print(
-            f'Cascade = [{casca:4d}/{args.cascade:4d}]'
+            f'Cascade = [{casca:4d}/{len_cascade:4d}]'
             f'ValLoss = {val_loss:.4g} ValTime = {val_time:.4f}s',
         )
 
