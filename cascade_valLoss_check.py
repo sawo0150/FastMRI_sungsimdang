@@ -226,6 +226,7 @@ def valLossChecking(args):
         val_loss_log = np.empty((0, 2))
     print(val_loss_log)
     len_cascade = len(model.cascades)
+    print(len_cascade)
     for casca in range(1, len_cascade+1):
         print(f'Cascade#01~ #{casca:2d} ............... {args.net_name} ...............')
         
