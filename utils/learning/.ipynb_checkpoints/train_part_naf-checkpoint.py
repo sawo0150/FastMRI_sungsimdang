@@ -71,6 +71,8 @@ def train_epoch(args, epoch, model, model_origin, data_loader, optimizer, loss_t
 #             print(koutput.shape)
 #             print(grappa.shape)
 #             print(iinput.shape)
+#             print('koutput')
+#             print(koutput)
             input_combined = torch.cat([koutput, grappa, iinput], dim=1) # 3개의 채널을 가진 이미지로 만듦
             # print('input_combined size', input_combined.shape)
 
@@ -79,6 +81,8 @@ def train_epoch(args, epoch, model, model_origin, data_loader, optimizer, loss_t
                 output = model(input_combined)
                 # print('output', output.shape)
                 output = output.squeeze(1)
+                # print('output')
+                # print(output)
                 loss = loss_type(output, target, maximum)
                 loss = loss / args.gradient_accumulation_steps  # Scale the loss for gradient accumulation
 
@@ -119,6 +123,9 @@ def validate(args, model, model_origin, data_loader):
             iinput = iinput.cuda(non_blocking=True)
             
             koutput = model_origin(kspace, mask)
+            koutput = koutput.unsquueze(1)
+            grappa = grappa.unsqueeze(1)
+            iinput = grappa.unsqueeze(1)
             input_combined = torch.cat((koutput, grappa, iinput), dim=1)
 
             # Apply gradient checkpointing
@@ -215,27 +222,27 @@ def train_naf(args):
     print(model_pt_filename)
     clear_gpu_memory()
     
-    model_origin_pt_filename = f'model13.pt'
+    model_origin_pt_filename = f'best_model13.pt'
     
     model_origin = PromptMR2(
-            num_cascades=args.pre_cascade,
-            additional_cascade_block = args.additional_cascade_block,
-            num_adj_slices=args.num_adj_slices,
-            n_feat0=args.n_feat0,
-            feature_dim = args.feature_dim,
-            prompt_dim = args.prompt_dim,
-            sens_n_feat0=args.sens_n_feat0,
-            sens_feature_dim = args.sens_feature_dim,
-            sens_prompt_dim = args.sens_prompt_dim,
-            len_prompt = args.len_prompt,
-            prompt_size = args.prompt_size,
-            n_enc_cab = args.n_enc_cab,
-            n_dec_cab = args.n_dec_cab,
-            n_skip_cab = args.n_skip_cab,
-            n_bottleneck_cab = args.n_bottleneck_cab,
-            no_use_ca = args.no_use_ca,
-            use_checkpoint=args.use_checkpoint,
-            low_mem = args.low_mem
+        num_cascades=args.pre_cascade,
+        additional_cascade_block = args.additional_cascade_block,
+        num_adj_slices=args.num_adj_slices,
+        n_feat0=args.n_feat0,
+        feature_dim = args.feature_dim,
+        prompt_dim = args.prompt_dim,
+        sens_n_feat0=args.sens_n_feat0,
+        sens_feature_dim = args.sens_feature_dim,
+        sens_prompt_dim = args.sens_prompt_dim,
+        len_prompt = args.len_prompt,
+        prompt_size = args.prompt_size,
+        n_enc_cab = args.n_enc_cab,
+        n_dec_cab = args.n_dec_cab,
+        n_skip_cab = args.n_skip_cab,
+        n_bottleneck_cab = args.n_bottleneck_cab,
+        no_use_ca = args.no_use_ca,
+        use_checkpoint=args.use_checkpoint,
+        low_mem = args.low_mem
     )
     
     model_origin.to(device=device)
@@ -247,13 +254,16 @@ def train_naf(args):
         print('Cannot find model_origin_pt, error will occur')
         
     print(model_origin_pt_filename, args.second_cascade)
+    
+    for param in model_origin.parameters():
+        param.requires_grad = False
     clear_gpu_memory()
     
 
     # loss_type = SSIMLoss().to(device=device)
     loss_type = MS_SSIM_L1_LOSS().to(device=device)  # 새로 만든 MS_SSIM_L1_LOSS 사용
     # optimizer = torch.optim.Adam(model.parameters(), args.lr)
-    optimizer = torch.optim.RAdam(model.parameters(), args.lr_naf)  # RAdam optimizer 사용
+    optimizer = torch.optim.Adam(model.parameters(), args.lr_naf)  # RAdam optimizer 사용
 
     val_loader = create_data_loaders_naf(
         data_path=args.data_path_val,

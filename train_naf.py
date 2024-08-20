@@ -87,7 +87,7 @@ def parse():
     parser.add_argument('--enc_blk_nums_naf', type=list, default=[1,1,1,28], help='Encoder block numbers for NAFNet')
     parser.add_argument('--dec_blk_nums_naf', type=list, default=[1,1,1,1], help='Decoder block numbers for NAFNet')
     parser.add_argument('--num_epochs_naf', type=int, default=20, help='Number of epochs for NAFNet training')
-    parser.add_argument('--lr_naf', type=float, default=1e-3, help='Learning rate for NAFNet')
+    parser.add_argument('--lr_naf', type=float, default=1e-4, help='Learning rate for NAFNet')
     args = parser.parse_args()
     return args
 
@@ -106,8 +106,8 @@ if __name__ == '__main__':
     args.num_workers = 8
 
     args.second_epochs = 70
-    args.pre_cascade = 6
-    args.second_cascade = 7
+    args.pre_cascade = 7
+    args.second_cascade = 10
     args.second_epoch_list = [126, 250, 400, 500, 600]
 
     args.additional_cascade_block = 1
