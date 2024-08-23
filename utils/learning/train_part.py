@@ -403,7 +403,6 @@ def load_checkpoint2(exp_dir, model, optimizers, model_filename='model.pt'):
                 except ValueError as e:
                     print(f"Warning: {e}")
                     print("Optimizer state dict contains a parameter group that doesn't match the size of optimizer's group. Ignoring the optimizer state.")
-                    # Optimizer의 파라미터 그룹이 불일치할 경우, 새로운 상태로 덮어씁니다.
                     continue
 
         start_epoch = checkpoint['epoch']
@@ -615,10 +614,8 @@ def initialize_model_and_optimizer(args, current_cascade_index, device, model_pt
         for param in model2.sens_net.parameters():
             param.requires_grad = False  # 동결
 
-        # 마지막 3개의 cascade를 위한 별도의 optimizer 생성
         optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.cascades[i].parameters()), args.lr) for i in range(args.pre_cascade, args.second_cascade)]
 
-        # model2.pt 로드 (optimizer 포함)
         start_epoch, best_val_loss = load_checkpoint2(args.exp_dir, model2, optimizers, model_filename=model_pt_filename)
         clear_gpu_memory()
 
@@ -645,10 +642,8 @@ def initialize_model_and_optimizer(args, current_cascade_index, device, model_pt
         )
         model1.to(device=device)
 
-        # model1의 학습된 가중치를 불러옵니다.
         optimizer = torch.optim.RAdam(model1.parameters(), args.lr)
 
-        # 마지막 3개의 cascade를 위한 별도의 optimizer 생성
         optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model1.cascades[i].parameters()), args.lr) for i in range(args.pre_cascade-1, args.second_cascade-1)]
 
         
@@ -712,7 +707,6 @@ def initialize_model_and_optimizer(args, current_cascade_index, device, model_pt
         del model1
         clear_gpu_memory()
 
-        # 마지막 3개의 cascade를 위한 별도의 optimizer 생성
         optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.cascades[i].parameters()), args.lr) for i in range(args.pre_cascade, args.second_cascade)]
 
     return model2, optimizers, start_epoch, best_val_loss
@@ -883,12 +877,10 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
         model2.to(device=device)
         print(args.second_cascade)
 
-        # 앞쪽 cascade block들을 동결
         for i in range(args.pre_cascade + args.additional_cascade_block * 6 - 6):
             for param in model2.cascades[i].parameters():
                 param.requires_grad = False  # 동결
 
-        # Sensitivity map 네트워크에서 앞쪽 블록들을 동결
         for i in range(args.additional_cascade_block):
             for param in model2.sens_nets[i].parameters():
                 param.requires_grad = False  # 동결
@@ -902,7 +894,6 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
         params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 1].parameters())
 
         optimizer = torch.optim.RAdam(params_to_update, args.lr)
-        # model2.pt 로드 (optimizer 포함)
         print(model_pt_filename, args.second_cascade)
         start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, model_filename=model_pt_filename)
         clear_gpu_memory()
@@ -960,23 +951,19 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
             print(pre_model_pt_filename, "load_checkpoint1")
             start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model1, optimizer=optimizer, model_filename=pre_model_pt_filename)
 
-            # model1의 첫 6개의 cascade block을 복사하고 동결
             for i in range(args.pre_cascade + args.additional_cascade_block * 2 - 2):
                 model2.cascades[i] = copy.deepcopy(model1.cascades[i])
                 for param in model2.cascades[i].parameters():
                     param.requires_grad = False  # 동결
             
-            # Sensitivity map 네트워크에서 앞쪽 블록들을 동결
             for i in range(args.additional_cascade_block):
                 model2.sens_nets[i] = copy.deepcopy(model1.sens_nets[i])
                 for param in model2.sens_nets[i].parameters():
                     param.requires_grad = False  # 동결
             model2.sens_nets[args.additional_cascade_block] = copy.deepcopy(model1.sens_nets[args.additional_cascade_block-1])
 
-            # # 학습할 파라미터만 포함한 optimizer 생성
             # optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
 
-            # 특정 파라미터들만 업데이트하도록 optimizer를 설정
             params_to_update = []
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 6].parameters())
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 5].parameters())
@@ -1011,28 +998,23 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
             )
             model1.to(device=device)
 
-            # 마지막 3개의 cascade를 위한 별도의 optimizer 생성
             optimizers = [torch.optim.RAdam(filter(lambda p: p.requires_grad, model1.cascades[i].parameters()), args.lr) for i in range(args.pre_cascade-1, args.pre_cascade)]
             print(pre_model_pt_filename, "load_checkpoint2")
             start_epoch, best_val_loss = load_checkpoint2(args.exp_dir, model1, optimizers=optimizers, model_filename=pre_model_pt_filename)
             print("start_Epoch : ",start_epoch)
-            # model1의 첫 6개의 cascade block을 복사하고 동결
             for i in range(args.pre_cascade + args.additional_cascade_block * 2 - 2):
                 model2.cascades[i] = copy.deepcopy(model1.cascades[i])
                 for param in model2.cascades[i].parameters():
                     param.requires_grad = False  # 동결
             
-            # Sensitivity map 네트워크에서 앞쪽 블록들을 동결
             for i in range(args.additional_cascade_block):
                 model2.sens_nets[i] = copy.deepcopy(model1.sens_net)
                 for param in model2.sens_nets[i].parameters():
                     param.requires_grad = False  # 동결
             model2.sens_nets[args.additional_cascade_block] = copy.deepcopy(model1.sens_net)
 
-            # # 학습할 파라미터만 포함한 optimizer 생성
             # optimizer = torch.optim.RAdam(filter(lambda p: p.requires_grad, model2.parameters()), args.lr)
 
-            # 특정 파라미터들만 업데이트하도록 optimizer를 설정
             params_to_update = []
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 6].parameters())
             params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 5].parameters())
