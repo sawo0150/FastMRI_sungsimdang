@@ -22,11 +22,11 @@ def test(args, model, model_naf, data_loader):
             iinput = iinput.cuda(non_blocking=True)
             koutput = model(kspace, mask)
             
-            koutput = koutput.unsquueze(1)
+            koutput = koutput.unsqueeze(1)
             grappa = grappa.unsqueeze(1)
             iinput = iinput.unsqueeze(1)
             input_combined = torch.cat([koutput, grappa, iinput], dim=1)
-            output = model_naf(inut_combined)
+            output = model_naf(koutput)
             output = output.squeeze(1)
 
             for i in range(output.shape[0]):

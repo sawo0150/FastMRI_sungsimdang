@@ -78,7 +78,8 @@ def train_epoch(args, epoch, model, model_origin, data_loader, optimizer, loss_t
 
         with torch.set_grad_enabled(True):
             with autocast():
-                output = model(input_combined)
+                # output = model(input_combined)
+                output = model(koutput)
                 # print('output', output.shape)
                 output = output.squeeze(1)
                 # print('output')
@@ -123,15 +124,15 @@ def validate(args, model, model_origin, data_loader):
             iinput = iinput.cuda(non_blocking=True)
             
             koutput = model_origin(kspace, mask)
-            koutput = koutput.unsquueze(1)
+            koutput = koutput.unsqueeze(1)
             grappa = grappa.unsqueeze(1)
-            iinput = grappa.unsqueeze(1)
+            iinput = iinput.unsqueeze(1)
             input_combined = torch.cat((koutput, grappa, iinput), dim=1)
 
             # Apply gradient checkpointing
             # output = checkpointed_forward(model, kspace, mask)
-            output = model(input_combined)
-
+            # output = model(input_combined)
+            output = model(koutput)
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
                 targets[fnames[i]][int(slices[i])] = target[i].numpy()
@@ -145,6 +146,7 @@ def validate(args, model, model_origin, data_loader):
             [out for _, out in sorted(targets[fname].items())]
         )
     metric_loss = sum([ssim_loss(targets[fname], reconstructions[fname]) for fname in reconstructions])
+    print(metric_loss)
     num_subjects = len(reconstructions)
     return metric_loss, num_subjects, reconstructions, targets, None, time.perf_counter() - start
 

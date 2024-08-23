@@ -81,7 +81,7 @@ def parse():
     # max_train_resolution 인자를 추가합니다.
     parser.add_argument("--max_train_resolution",nargs="+",default=None,type=int,help="If given, training slices will be center cropped to this size if larger along any dimension.")
     
-    parser.add_argument('--img_channel_naf', type=int, default=3, help='Number of image channels for NAFNet')
+    parser.add_argument('--img_channel_naf', type=int, default=1, help='Number of image channels for NAFNet')
     parser.add_argument('--width_naf', type=int, default=32, help='Width for NAFNet')
     parser.add_argument('--middle_blk_num_naf', type=int, default=1, help='Number of middle blocks for NAFNet')
     parser.add_argument('--enc_blk_nums_naf', type=list, default=[1,1,1,28], help='Encoder block numbers for NAFNet')
