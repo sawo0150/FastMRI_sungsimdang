@@ -374,12 +374,13 @@ def download_model(url, fname):
             progress_bar.update(len(chunk))
             fh.write(chunk)
 
-def load_checkpoint(exp_dir, model, optimizer, model_filename='model06.pt'):
+def load_checkpoint(exp_dir, model, optimizer=None, model_filename='model06.pt'):
     checkpoint_path = exp_dir / model_filename
     if checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
+        if optimizer is not None:
+            optimizer.load_state_dict(checkpoint['optimizer'])
         start_epoch = checkpoint['epoch']
         best_val_loss = checkpoint['best_val_loss']
         print(f"Checkpoint loaded. Resuming from epoch {start_epoch}, with best validation loss {best_val_loss:.4g}.")
@@ -892,7 +893,6 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
             for param in model2.sens_nets[i].parameters():
                 param.requires_grad = False  # 동결
 
-        # 특정 파라미터들만 업데이트하도록 optimizer를 설정
         params_to_update = []
         params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 6].parameters())
         params_to_update += list(model2.cascades[args.pre_cascade + args.additional_cascade_block * 6 - 5].parameters())
@@ -904,7 +904,7 @@ def initialize_model_and_optimizer2(args, current_cascade_index, device, model_p
         optimizer = torch.optim.RAdam(params_to_update, args.lr)
         # model2.pt 로드 (optimizer 포함)
         print(model_pt_filename, args.second_cascade)
-        start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, optimizer, model_filename=model_pt_filename)
+        start_epoch, best_val_loss = load_checkpoint(args.exp_dir, model2, model_filename=model_pt_filename)
         clear_gpu_memory()
 
     else:
